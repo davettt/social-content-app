@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import type { Project } from '../types';
+import { create } from "zustand";
+import type { Project } from "../types";
 
 interface ProjectState {
   currentProject: Project | null;

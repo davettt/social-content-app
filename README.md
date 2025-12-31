@@ -13,7 +13,7 @@ A local-first web application for creating viral-optimized social media content.
 - **Post composer** - AI captions, hashtags, virality scoring
 - **Template system** - Pre-built viral formats
 - **Platform export** - Instagram, Threads, Twitter/X, LinkedIn
-- **Phone transfer** - ZIP download or QR code local transfer
+- **Phone transfer** - ZIP download for easy AirDrop to phone
 
 ## Requirements
 

@@ -30,7 +30,7 @@ export interface BusinessInfo {
   description: string;
   targetAudience?: string;
   services: string[];
-  tone: 'professional' | 'casual' | 'fun' | 'inspirational' | 'educational';
+  tone: "professional" | "casual" | "fun" | "inspirational" | "educational";
 }
 
 export interface ProjectSettings {
@@ -38,7 +38,7 @@ export interface ProjectSettings {
   watermarkEnabled: boolean;
 }
 
-export type Platform = 'instagram' | 'threads' | 'twitter' | 'linkedin';
+export type Platform = "instagram" | "threads" | "twitter" | "linkedin";
 
 export interface Project {
   id: string;
@@ -51,7 +51,7 @@ export interface Project {
   settings: ProjectSettings;
 }
 
-export type CreateProjectInput = Pick<Project, 'name'> & {
+export type CreateProjectInput = Pick<Project, "name"> & {
   businessInfo?: Partial<BusinessInfo>;
   contactInfo?: Partial<ContactInfo>;
   brandKit?: Partial<BrandKit>;

@@ -1,6 +1,6 @@
 {
   "name": "social-content-app",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Local-first web application for creating viral-optimized social media content",
   "type": "module",
   "scripts": {

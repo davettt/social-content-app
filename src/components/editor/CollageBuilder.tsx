@@ -1,15 +1,21 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '../common/Button';
-import type { Media, BrandKit } from '../../types';
+import { useState, useRef, useEffect } from "react";
+import { Button } from "../common/Button";
+import type { Media, BrandKit } from "../../types";
 
 interface TextOverlay {
   text: string;
   fontSize: number;
   fontFamily: string;
-  fontWeight: 'normal' | 'bold';
+  fontWeight: "normal" | "bold";
   color: string;
-  position: 'top' | 'center' | 'bottom';
+  position: "top" | "center" | "bottom";
   shadow: boolean;
+}
+
+interface SlotAdjustment {
+  scale: number; // 1.0 = 100%, range 1.0 - 3.0
+  panX: number; // Offset in pixels (at full canvas size)
+  panY: number; // Offset in pixels (at full canvas size)
 }
 
 interface CollageBuilderProps {
@@ -19,48 +25,66 @@ interface CollageBuilderProps {
   onClose: () => void;
 }
 
-type LayoutType = '2x1' | '1x2' | '2x2' | '3x1' | '1+2' | '2+1';
+type LayoutType = "2x1" | "1x2" | "2x2" | "3x1" | "1+2" | "2+1";
 
 const LAYOUTS: { type: LayoutType; label: string; slots: number }[] = [
-  { type: '2x1', label: '2 Horizontal', slots: 2 },
-  { type: '1x2', label: '2 Vertical', slots: 2 },
-  { type: '2x2', label: '2x2 Grid', slots: 4 },
-  { type: '3x1', label: '3 Horizontal', slots: 3 },
-  { type: '1+2', label: '1 + 2', slots: 3 },
-  { type: '2+1', label: '2 + 1', slots: 3 },
+  { type: "2x1", label: "2 Horizontal", slots: 2 },
+  { type: "1x2", label: "2 Vertical", slots: 2 },
+  { type: "2x2", label: "2x2 Grid", slots: 4 },
+  { type: "3x1", label: "3 Horizontal", slots: 3 },
+  { type: "1+2", label: "1 + 2", slots: 3 },
+  { type: "2+1", label: "2 + 1", slots: 3 },
 ];
 
 const FONTS = [
-  'Inter',
-  'Arial',
-  'Georgia',
-  'Times New Roman',
-  'Helvetica',
-  'Impact',
+  "Inter",
+  "Arial",
+  "Georgia",
+  "Times New Roman",
+  "Helvetica",
+  "Impact",
 ];
 
 const CANVAS_SIZE = 1080;
 
-export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: CollageBuilderProps) {
+export function CollageBuilder({
+  availableMedia,
+  brandKit,
+  onSave,
+  onClose,
+}: CollageBuilderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
 
-  const [selectedLayout, setSelectedLayout] = useState<LayoutType>('2x2');
+  const [selectedLayout, setSelectedLayout] = useState<LayoutType>("2x2");
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [spacing, setSpacing] = useState(8);
   const [borderRadius, setBorderRadius] = useState(8);
-  const [backgroundColor, setBackgroundColor] = useState(brandKit?.primaryColor || '#ffffff');
+  const [backgroundColor, setBackgroundColor] = useState(
+    brandKit?.primaryColor || "#ffffff",
+  );
   const [isRendering, setIsRendering] = useState(false);
   const [textOverlay, setTextOverlay] = useState<TextOverlay>({
-    text: '',
+    text: "",
     fontSize: 48,
-    fontFamily: brandKit?.fonts?.heading || 'Inter',
-    fontWeight: 'bold',
-    color: '#ffffff',
-    position: 'bottom',
+    fontFamily: brandKit?.fonts?.heading || "Inter",
+    fontWeight: "bold",
+    color: "#ffffff",
+    position: "bottom",
     shadow: false,
   });
+
+  // Pan/zoom state for each slot
+  const [slotAdjustments, setSlotAdjustments] = useState<
+    Record<number, SlotAdjustment>
+  >({});
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [layoutPositions, setLayoutPositions] = useState<
+    { x: number; y: number; width: number; height: number }[]
+  >([]);
 
   const currentLayout = LAYOUTS.find((l) => l.type === selectedLayout)!;
   const slotsNeeded = currentLayout.slots;
@@ -74,26 +98,32 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
       }
     };
     updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
   }, []);
 
   // Get brand colors for quick selection (same pattern as ImageEditor)
   const getBrandColors = () => {
     const colors: { label: string; color: string }[] = [];
-    if (brandKit?.primaryColor) colors.push({ label: 'Primary', color: brandKit.primaryColor });
-    if (brandKit?.secondaryColor) colors.push({ label: 'Secondary', color: brandKit.secondaryColor });
-    if (brandKit?.accentColor) colors.push({ label: 'Accent', color: brandKit.accentColor });
+    if (brandKit?.primaryColor)
+      colors.push({ label: "Primary", color: brandKit.primaryColor });
+    if (brandKit?.secondaryColor)
+      colors.push({ label: "Secondary", color: brandKit.secondaryColor });
+    if (brandKit?.accentColor)
+      colors.push({ label: "Accent", color: brandKit.accentColor });
     if (brandKit?.colorPalette) {
       brandKit.colorPalette.forEach((c, i) => {
-        if (!colors.some(existing => existing.color.toLowerCase() === c.toLowerCase())) {
+        if (
+          !colors.some(
+            (existing) => existing.color.toLowerCase() === c.toLowerCase(),
+          )
+        ) {
           colors.push({ label: `Color ${i + 1}`, color: c });
         }
       });
     }
     return colors;
   };
-
 
   const handleImageSelect = (mediaId: string) => {
     if (selectedImages.includes(mediaId)) {
@@ -105,39 +135,115 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
 
   // Calculate positions for each layout type
   const getLayoutPositions = (size: number, gap: number) => {
-    const positions: { x: number; y: number; width: number; height: number }[] = [];
+    const positions: { x: number; y: number; width: number; height: number }[] =
+      [];
     const halfSize = (size - gap * 3) / 2;
     const thirdSize = (size - gap * 4) / 3;
 
     switch (selectedLayout) {
-      case '2x1':
-        positions.push({ x: gap, y: gap, width: halfSize, height: size - gap * 2 });
-        positions.push({ x: gap * 2 + halfSize, y: gap, width: halfSize, height: size - gap * 2 });
+      case "2x1":
+        positions.push({
+          x: gap,
+          y: gap,
+          width: halfSize,
+          height: size - gap * 2,
+        });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap,
+          width: halfSize,
+          height: size - gap * 2,
+        });
         break;
-      case '1x2':
-        positions.push({ x: gap, y: gap, width: size - gap * 2, height: halfSize });
-        positions.push({ x: gap, y: gap * 2 + halfSize, width: size - gap * 2, height: halfSize });
+      case "1x2":
+        positions.push({
+          x: gap,
+          y: gap,
+          width: size - gap * 2,
+          height: halfSize,
+        });
+        positions.push({
+          x: gap,
+          y: gap * 2 + halfSize,
+          width: size - gap * 2,
+          height: halfSize,
+        });
         break;
-      case '2x2':
+      case "2x2":
         positions.push({ x: gap, y: gap, width: halfSize, height: halfSize });
-        positions.push({ x: gap * 2 + halfSize, y: gap, width: halfSize, height: halfSize });
-        positions.push({ x: gap, y: gap * 2 + halfSize, width: halfSize, height: halfSize });
-        positions.push({ x: gap * 2 + halfSize, y: gap * 2 + halfSize, width: halfSize, height: halfSize });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap,
+          width: halfSize,
+          height: halfSize,
+        });
+        positions.push({
+          x: gap,
+          y: gap * 2 + halfSize,
+          width: halfSize,
+          height: halfSize,
+        });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap * 2 + halfSize,
+          width: halfSize,
+          height: halfSize,
+        });
         break;
-      case '3x1':
-        positions.push({ x: gap, y: gap, width: thirdSize, height: size - gap * 2 });
-        positions.push({ x: gap * 2 + thirdSize, y: gap, width: thirdSize, height: size - gap * 2 });
-        positions.push({ x: gap * 3 + thirdSize * 2, y: gap, width: thirdSize, height: size - gap * 2 });
+      case "3x1":
+        positions.push({
+          x: gap,
+          y: gap,
+          width: thirdSize,
+          height: size - gap * 2,
+        });
+        positions.push({
+          x: gap * 2 + thirdSize,
+          y: gap,
+          width: thirdSize,
+          height: size - gap * 2,
+        });
+        positions.push({
+          x: gap * 3 + thirdSize * 2,
+          y: gap,
+          width: thirdSize,
+          height: size - gap * 2,
+        });
         break;
-      case '1+2':
-        positions.push({ x: gap, y: gap, width: halfSize, height: size - gap * 2 });
-        positions.push({ x: gap * 2 + halfSize, y: gap, width: halfSize, height: halfSize });
-        positions.push({ x: gap * 2 + halfSize, y: gap * 2 + halfSize, width: halfSize, height: halfSize });
+      case "1+2":
+        positions.push({
+          x: gap,
+          y: gap,
+          width: halfSize,
+          height: size - gap * 2,
+        });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap,
+          width: halfSize,
+          height: halfSize,
+        });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap * 2 + halfSize,
+          width: halfSize,
+          height: halfSize,
+        });
         break;
-      case '2+1':
+      case "2+1":
         positions.push({ x: gap, y: gap, width: halfSize, height: halfSize });
-        positions.push({ x: gap * 2 + halfSize, y: gap, width: halfSize, height: halfSize });
-        positions.push({ x: gap, y: gap * 2 + halfSize, width: size - gap * 2, height: halfSize });
+        positions.push({
+          x: gap * 2 + halfSize,
+          y: gap,
+          width: halfSize,
+          height: halfSize,
+        });
+        positions.push({
+          x: gap,
+          y: gap * 2 + halfSize,
+          width: size - gap * 2,
+          height: halfSize,
+        });
         break;
     }
 
@@ -145,8 +251,11 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
   };
 
   // Render to canvas (used for both preview and export)
-  const renderToCanvas = async (canvas: HTMLCanvasElement, size: number): Promise<void> => {
-    const ctx = canvas.getContext('2d')!;
+  const renderToCanvas = async (
+    canvas: HTMLCanvasElement,
+    size: number,
+  ): Promise<void> => {
+    const ctx = canvas.getContext("2d")!;
     canvas.width = size;
     canvas.height = size;
 
@@ -160,13 +269,24 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
     const positions = getLayoutPositions(size, scaledSpacing);
 
     // Helper function for rounded rectangles
-    const roundedRect = (x: number, y: number, width: number, height: number, radius: number) => {
+    const roundedRect = (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number,
+    ) => {
       ctx.beginPath();
       ctx.moveTo(x + radius, y);
       ctx.lineTo(x + width - radius, y);
       ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
       ctx.lineTo(x + width, y + height - radius);
-      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - radius,
+        y + height,
+      );
       ctx.lineTo(x + radius, y + height);
       ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
       ctx.lineTo(x, y + radius);
@@ -178,7 +298,7 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
     const loadImage = (src: string): Promise<HTMLImageElement> => {
       return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        img.crossOrigin = "anonymous";
         img.onload = () => resolve(img);
         img.onerror = reject;
         img.src = src;
@@ -191,6 +311,10 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
       const pos = positions[i];
       if (!media || !pos) continue;
 
+      // Get slot adjustment (default: no zoom, centered)
+      const adjustment = slotAdjustments[i] || { scale: 1, panX: 0, panY: 0 };
+      const scaleFactor = size / CANVAS_SIZE; // Scale pan values for preview vs export
+
       try {
         const img = await loadImage(`/media/${media.originalPath}`);
 
@@ -198,27 +322,37 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
         roundedRect(pos.x, pos.y, pos.width, pos.height, scaledRadius);
         ctx.clip();
 
-        // Draw image to cover the area
+        // Draw image to cover the area with zoom and pan applied
         const imgRatio = img.width / img.height;
         const boxRatio = pos.width / pos.height;
-        let drawWidth, drawHeight, drawX, drawY;
+        let baseWidth, baseHeight, baseX, baseY;
 
         if (imgRatio > boxRatio) {
-          drawHeight = pos.height;
-          drawWidth = drawHeight * imgRatio;
-          drawX = pos.x - (drawWidth - pos.width) / 2;
-          drawY = pos.y;
+          baseHeight = pos.height;
+          baseWidth = baseHeight * imgRatio;
+          baseX = pos.x - (baseWidth - pos.width) / 2;
+          baseY = pos.y;
         } else {
-          drawWidth = pos.width;
-          drawHeight = drawWidth / imgRatio;
-          drawX = pos.x;
-          drawY = pos.y - (drawHeight - pos.height) / 2;
+          baseWidth = pos.width;
+          baseHeight = baseWidth / imgRatio;
+          baseX = pos.x;
+          baseY = pos.y - (baseHeight - pos.height) / 2;
         }
 
-        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+        // Apply zoom (scale from center of slot)
+        const zoomedWidth = baseWidth * adjustment.scale;
+        const zoomedHeight = baseHeight * adjustment.scale;
+        const zoomOffsetX = (zoomedWidth - baseWidth) / 2;
+        const zoomOffsetY = (zoomedHeight - baseHeight) / 2;
+
+        // Apply pan (scaled for canvas size)
+        const drawX = baseX - zoomOffsetX + adjustment.panX * scaleFactor;
+        const drawY = baseY - zoomOffsetY + adjustment.panY * scaleFactor;
+
+        ctx.drawImage(img, drawX, drawY, zoomedWidth, zoomedHeight);
         ctx.restore();
       } catch (e) {
-        console.warn('Failed to load image:', e);
+        console.warn("Failed to load image:", e);
       }
     }
 
@@ -227,11 +361,11 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
       const scaledFontSize = (textOverlay.fontSize / CANVAS_SIZE) * size;
       ctx.font = `${textOverlay.fontWeight} ${scaledFontSize}px "${textOverlay.fontFamily}", -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.fillStyle = textOverlay.color;
-      ctx.textAlign = 'center';
+      ctx.textAlign = "center";
 
       // Apply shadow if enabled
       if (textOverlay.shadow) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
@@ -240,22 +374,22 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
       // Calculate Y position
       let textY: number;
       const padding = size * 0.08;
-      if (textOverlay.position === 'top') {
-        ctx.textBaseline = 'top';
+      if (textOverlay.position === "top") {
+        ctx.textBaseline = "top";
         textY = padding;
-      } else if (textOverlay.position === 'center') {
-        ctx.textBaseline = 'middle';
+      } else if (textOverlay.position === "center") {
+        ctx.textBaseline = "middle";
         textY = size / 2;
       } else {
-        ctx.textBaseline = 'bottom';
+        ctx.textBaseline = "bottom";
         textY = size - padding;
       }
 
       // Word wrap for long text
       const maxWidth = size * 0.9;
-      const words = textOverlay.text.split(' ');
+      const words = textOverlay.text.split(" ");
       const lines: string[] = [];
-      let currentLine = '';
+      let currentLine = "";
 
       for (const word of words) {
         const testLine = currentLine ? `${currentLine} ${word}` : word;
@@ -272,9 +406,9 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
       // Adjust Y for multi-line text
       const lineHeight = scaledFontSize * 1.2;
       let startY = textY;
-      if (textOverlay.position === 'center') {
+      if (textOverlay.position === "center") {
         startY = textY - ((lines.length - 1) * lineHeight) / 2;
-      } else if (textOverlay.position === 'bottom') {
+      } else if (textOverlay.position === "bottom") {
         startY = textY - (lines.length - 1) * lineHeight;
       }
 
@@ -285,7 +419,7 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
 
       // Reset shadow
       if (textOverlay.shadow) {
-        ctx.shadowColor = 'transparent';
+        ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
@@ -298,19 +432,133 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
     if (!canvasRef.current || selectedImages.length === 0) return;
     const previewSize = Math.round(CANVAS_SIZE * previewScale);
     renderToCanvas(canvasRef.current, previewSize);
-  }, [selectedLayout, selectedImages, spacing, borderRadius, backgroundColor, textOverlay, previewScale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- renderToCanvas reads current state when called
+  }, [
+    selectedLayout,
+    selectedImages,
+    spacing,
+    borderRadius,
+    backgroundColor,
+    textOverlay,
+    previewScale,
+    slotAdjustments,
+  ]);
+
+  // Update layout positions for hit testing (at preview scale)
+  useEffect(() => {
+    const scaledSpacing =
+      (spacing / CANVAS_SIZE) * CANVAS_SIZE * previewScale * 10;
+    const positions = getLayoutPositions(
+      CANVAS_SIZE * previewScale,
+      scaledSpacing,
+    );
+    setLayoutPositions(positions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getLayoutPositions only depends on selectedLayout which is listed
+  }, [selectedLayout, spacing, previewScale]);
+
+  // Find which slot a point is in
+  const getSlotAtPoint = (clientX: number, clientY: number): number | null => {
+    if (!canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    for (let i = 0; i < layoutPositions.length; i++) {
+      const pos = layoutPositions[i];
+      if (
+        pos &&
+        x >= pos.x &&
+        x <= pos.x + pos.width &&
+        y >= pos.y &&
+        y <= pos.y + pos.height
+      ) {
+        return i;
+      }
+    }
+    return null;
+  };
+
+  // Mouse wheel handler for zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const slotIndex = getSlotAtPoint(e.clientX, e.clientY);
+    if (slotIndex === null || slotIndex >= selectedImages.length) return;
+
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const current = slotAdjustments[slotIndex] || {
+      scale: 1,
+      panX: 0,
+      panY: 0,
+    };
+    const newScale = Math.max(1, Math.min(3, current.scale + delta));
+
+    setSlotAdjustments({
+      ...slotAdjustments,
+      [slotIndex]: { ...current, scale: newScale },
+    });
+    setSelectedSlot(slotIndex);
+  };
+
+  // Mouse down handler for pan start
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const slotIndex = getSlotAtPoint(e.clientX, e.clientY);
+    if (slotIndex === null || slotIndex >= selectedImages.length) return;
+
+    setSelectedSlot(slotIndex);
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+  };
+
+  // Mouse move handler for pan
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || selectedSlot === null) return;
+
+    const deltaX = e.clientX - dragStart.x;
+    const deltaY = e.clientY - dragStart.y;
+    const current = slotAdjustments[selectedSlot] || {
+      scale: 1,
+      panX: 0,
+      panY: 0,
+    };
+
+    // Scale delta to canvas coordinates
+    const scaledDeltaX = deltaX / previewScale;
+    const scaledDeltaY = deltaY / previewScale;
+
+    setSlotAdjustments({
+      ...slotAdjustments,
+      [selectedSlot]: {
+        ...current,
+        panX: current.panX + scaledDeltaX,
+        panY: current.panY + scaledDeltaY,
+      },
+    });
+    setDragStart({ x: e.clientX, y: e.clientY });
+  };
+
+  // Mouse up handler for pan end
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Reset slot adjustment
+  const resetSlotAdjustment = (slotIndex: number) => {
+    const newAdjustments = { ...slotAdjustments };
+    delete newAdjustments[slotIndex];
+    setSlotAdjustments(newAdjustments);
+  };
 
   const handleSave = async () => {
     setIsRendering(true);
 
     try {
       // Create a full-size canvas for export
-      const exportCanvas = document.createElement('canvas');
+      const exportCanvas = document.createElement("canvas");
       await renderToCanvas(exportCanvas, CANVAS_SIZE);
-      const dataUrl = exportCanvas.toDataURL('image/png');
+      const dataUrl = exportCanvas.toDataURL("image/png");
       onSave(dataUrl);
     } catch (error) {
-      console.error('Failed to render collage:', error);
+      console.error("Failed to render collage:", error);
     } finally {
       setIsRendering(false);
     }
@@ -320,7 +568,7 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
   const ColorSwatches = ({
     value,
     onChange,
-    label
+    label,
   }: {
     value: string;
     onChange: (color: string) => void;
@@ -340,8 +588,8 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                 onClick={() => onChange(c.color)}
                 className={`w-8 h-8 rounded-lg border-2 transition-all ${
                   value.toLowerCase() === c.color.toLowerCase()
-                    ? 'border-white scale-110'
-                    : 'border-gray-600 hover:border-gray-400'
+                    ? "border-white scale-110"
+                    : "border-gray-600 hover:border-gray-400"
                 }`}
                 style={{ backgroundColor: c.color }}
                 title={c.label}
@@ -368,8 +616,12 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={selectedImages.length < slotsNeeded || isRendering} isLoading={isRendering}>
-            {isRendering ? 'Creating...' : 'Create Collage'}
+          <Button
+            onClick={handleSave}
+            disabled={selectedImages.length < slotsNeeded || isRendering}
+            isLoading={isRendering}
+          >
+            {isRendering ? "Creating..." : "Create Collage"}
           </Button>
         </div>
       </div>
@@ -382,7 +634,15 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
               <canvas
                 ref={canvasRef}
                 className="w-full h-full rounded-lg shadow-2xl"
-                style={{ imageRendering: 'auto' }}
+                style={{
+                  imageRendering: "auto",
+                  cursor: isDragging ? "grabbing" : "grab",
+                }}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
               />
             ) : (
               <div
@@ -410,8 +670,8 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                   }}
                   className={`p-3 rounded-lg text-center ${
                     selectedLayout === layout.type
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? "bg-primary-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                   }`}
                 >
                   <div className="text-xs">{layout.label}</div>
@@ -469,7 +729,9 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
               <label className="block text-sm text-gray-400 mb-1">Text</label>
               <textarea
                 value={textOverlay.text}
-                onChange={(e) => setTextOverlay({ ...textOverlay, text: e.target.value })}
+                onChange={(e) =>
+                  setTextOverlay({ ...textOverlay, text: e.target.value })
+                }
                 placeholder="Add text to your collage..."
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm resize-none"
                 rows={2}
@@ -479,23 +741,33 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
             {textOverlay.text && (
               <>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Font</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Font
+                  </label>
                   <select
                     value={textOverlay.fontFamily}
-                    onChange={(e) => setTextOverlay({ ...textOverlay, fontFamily: e.target.value })}
+                    onChange={(e) =>
+                      setTextOverlay({
+                        ...textOverlay,
+                        fontFamily: e.target.value,
+                      })
+                    }
                     className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600"
                   >
                     {/* Brand fonts first if available */}
-                    {brandKit?.fonts?.heading && !FONTS.includes(brandKit.fonts.heading) && (
-                      <option value={brandKit.fonts.heading}>
-                        {brandKit.fonts.heading} (Brand)
-                      </option>
-                    )}
-                    {brandKit?.fonts?.body && !FONTS.includes(brandKit.fonts.body) && brandKit.fonts.body !== brandKit.fonts.heading && (
-                      <option value={brandKit.fonts.body}>
-                        {brandKit.fonts.body} (Brand)
-                      </option>
-                    )}
+                    {brandKit?.fonts?.heading &&
+                      !FONTS.includes(brandKit.fonts.heading) && (
+                        <option value={brandKit.fonts.heading}>
+                          {brandKit.fonts.heading} (Brand)
+                        </option>
+                      )}
+                    {brandKit?.fonts?.body &&
+                      !FONTS.includes(brandKit.fonts.body) &&
+                      brandKit.fonts.body !== brandKit.fonts.heading && (
+                        <option value={brandKit.fonts.body}>
+                          {brandKit.fonts.body} (Brand)
+                        </option>
+                      )}
                     {FONTS.map((font) => (
                       <option key={font} value={font}>
                         {font}
@@ -514,22 +786,31 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                     min="24"
                     max="120"
                     value={textOverlay.fontSize}
-                    onChange={(e) => setTextOverlay({ ...textOverlay, fontSize: Number(e.target.value) })}
+                    onChange={(e) =>
+                      setTextOverlay({
+                        ...textOverlay,
+                        fontSize: Number(e.target.value),
+                      })
+                    }
                     className="w-full"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Position</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Position
+                  </label>
                   <div className="flex gap-2">
-                    {(['top', 'center', 'bottom'] as const).map((pos) => (
+                    {(["top", "center", "bottom"] as const).map((pos) => (
                       <button
                         key={pos}
-                        onClick={() => setTextOverlay({ ...textOverlay, position: pos })}
+                        onClick={() =>
+                          setTextOverlay({ ...textOverlay, position: pos })
+                        }
                         className={`flex-1 py-2 rounded-lg text-sm capitalize ${
                           textOverlay.position === pos
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            ? "bg-primary-600 text-white"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                         }`}
                       >
                         {pos}
@@ -539,16 +820,20 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Weight</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Weight
+                  </label>
                   <div className="flex gap-2">
-                    {(['normal', 'bold'] as const).map((weight) => (
+                    {(["normal", "bold"] as const).map((weight) => (
                       <button
                         key={weight}
-                        onClick={() => setTextOverlay({ ...textOverlay, fontWeight: weight })}
+                        onClick={() =>
+                          setTextOverlay({ ...textOverlay, fontWeight: weight })
+                        }
                         className={`flex-1 py-2 rounded-lg text-sm capitalize ${
                           textOverlay.fontWeight === weight
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            ? "bg-primary-600 text-white"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                         }`}
                         style={{ fontWeight: weight }}
                       >
@@ -561,7 +846,9 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                 <ColorSwatches
                   label="Text Color"
                   value={textOverlay.color}
-                  onChange={(color) => setTextOverlay({ ...textOverlay, color })}
+                  onChange={(color) =>
+                    setTextOverlay({ ...textOverlay, color })
+                  }
                 />
 
                 <div>
@@ -569,7 +856,12 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                     <input
                       type="checkbox"
                       checked={textOverlay.shadow}
-                      onChange={(e) => setTextOverlay({ ...textOverlay, shadow: e.target.checked })}
+                      onChange={(e) =>
+                        setTextOverlay({
+                          ...textOverlay,
+                          shadow: e.target.checked,
+                        })
+                      }
                       className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-500"
                     />
                     <span className="text-sm text-gray-300">Drop Shadow</span>
@@ -579,10 +871,76 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
             )}
           </div>
 
+          {/* Image Positioning */}
+          {selectedImages.length > 0 && (
+            <div className="p-4 border-b border-gray-700 space-y-4">
+              <h3 className="text-sm font-medium text-gray-300">
+                Image Positioning
+              </h3>
+              <p className="text-xs text-gray-400">
+                Scroll to zoom, drag to pan. Click an image in the preview to
+                select it.
+              </p>
+
+              {selectedSlot !== null && selectedSlot < selectedImages.length ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-300">
+                      Slot {selectedSlot + 1} selected
+                    </span>
+                    <button
+                      onClick={() => resetSlotAdjustment(selectedSlot)}
+                      className="text-xs text-primary-400 hover:text-primary-300"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-sm text-gray-400 mb-1">
+                      <span>Zoom</span>
+                      <span>
+                        {(
+                          (slotAdjustments[selectedSlot]?.scale || 1) * 100
+                        ).toFixed(0)}
+                        %
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="100"
+                      max="300"
+                      value={(slotAdjustments[selectedSlot]?.scale || 1) * 100}
+                      onChange={(e) => {
+                        const newScale = Number(e.target.value) / 100;
+                        const current = slotAdjustments[selectedSlot] || {
+                          scale: 1,
+                          panX: 0,
+                          panY: 0,
+                        };
+                        setSlotAdjustments({
+                          ...slotAdjustments,
+                          [selectedSlot]: { ...current, scale: newScale },
+                        });
+                      }}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">
+                  Click on an image in the preview to adjust its position
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Image Selection */}
           <div className="p-4">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-medium text-gray-300">Select Images</h3>
+              <h3 className="text-sm font-medium text-gray-300">
+                Select Images
+              </h3>
               <span className="text-xs text-gray-400">
                 {selectedImages.length} / {slotsNeeded}
               </span>
@@ -590,7 +948,7 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
 
             <div className="grid grid-cols-3 gap-2">
               {availableMedia
-                .filter((m) => m.type === 'image')
+                .filter((m) => m.type === "image")
                 .map((media) => {
                   const isSelected = selectedImages.includes(media.id);
                   const position = selectedImages.indexOf(media.id);
@@ -600,18 +958,23 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                       key={media.id}
                       onClick={() => handleImageSelect(media.id)}
                       className={`relative aspect-square rounded-lg overflow-hidden border-2 ${
-                        isSelected ? 'border-primary-500' : 'border-transparent'
+                        isSelected ? "border-primary-500" : "border-transparent"
                       }`}
-                      disabled={!isSelected && selectedImages.length >= slotsNeeded}
+                      disabled={
+                        !isSelected && selectedImages.length >= slotsNeeded
+                      }
                     >
                       <img
                         src={`/media/${media.thumbnailPath}`}
                         alt=""
-                        className={`w-full h-full object-cover ${
-                          !isSelected && selectedImages.length >= slotsNeeded ? 'opacity-50' : ''
+                        className={`w-full h-full object-cover object-center ${
+                          !isSelected && selectedImages.length >= slotsNeeded
+                            ? "opacity-50"
+                            : ""
                         }`}
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = `/media/${media.originalPath}`;
+                          (e.target as HTMLImageElement).src =
+                            `/media/${media.originalPath}`;
                         }}
                       />
                       {isSelected && (
@@ -624,7 +987,7 @@ export function CollageBuilder({ availableMedia, brandKit, onSave, onClose }: Co
                 })}
             </div>
 
-            {availableMedia.filter((m) => m.type === 'image').length === 0 && (
+            {availableMedia.filter((m) => m.type === "image").length === 0 && (
               <p className="text-gray-400 text-sm text-center py-8">
                 No images in library. Upload some images first.
               </p>

@@ -1,12 +1,12 @@
-import { Link, useLocation, useParams } from 'react-router-dom';
-import { useProject } from '../../hooks/useProjects';
+import { Link, useLocation, useParams } from "react-router-dom";
+import { useProject } from "../../hooks/useProjects";
 
 export function Header() {
   const location = useLocation();
   const { projectId } = useParams();
   const { data: project } = useProject(projectId);
 
-  const isHome = location.pathname === '/';
+  const isHome = location.pathname === "/";
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -29,7 +29,9 @@ export function Header() {
                   />
                 </svg>
               </div>
-              <span className="font-semibold text-gray-900">Social Content</span>
+              <span className="font-semibold text-gray-900">
+                Social Content
+              </span>
             </Link>
 
             {project && (
@@ -47,7 +49,9 @@ export function Header() {
               </NavLink>
               <NavLink to={`/projects/${projectId}/media`}>Media</NavLink>
               <NavLink to={`/projects/${projectId}/compose`}>Compose</NavLink>
-              <NavLink to={`/projects/${projectId}/templates`}>Templates</NavLink>
+              <NavLink to={`/projects/${projectId}/templates`}>
+                Templates
+              </NavLink>
               <NavLink to={`/projects/${projectId}/export`}>Export</NavLink>
             </nav>
           )}
@@ -82,8 +86,8 @@ function NavLink({
       to={to}
       className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
         isActive
-          ? 'bg-primary-50 text-primary-700'
-          : 'text-gray-600 hover:bg-gray-100'
+          ? "bg-primary-50 text-primary-700"
+          : "text-gray-600 hover:bg-gray-100"
       }`}
     >
       {children}

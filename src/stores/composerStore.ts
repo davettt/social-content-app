@@ -1,5 +1,23 @@
-import { create } from 'zustand';
-import type { Platform, PostMedia, CaptionSuggestion, ViralityScore } from '../types';
+import { create } from "zustand";
+import type {
+  Platform,
+  PostMedia,
+  CaptionSuggestion,
+  ViralityScore,
+  ImageAdjustments,
+  TextOverlay,
+} from "../types";
+
+export interface EditedImageData {
+  dataUrl: string;
+  adjustments?: ImageAdjustments;
+  textOverlays?: TextOverlay[];
+}
+
+export interface GeneratedImage {
+  dataUrl: string;
+  type: "collage" | "template";
+}
 
 interface ComposerState {
   selectedMediaIds: string[];
@@ -9,8 +27,8 @@ interface ComposerState {
   platforms: Platform[];
   captionSuggestions: CaptionSuggestion[];
   viralityScore: ViralityScore | null;
-  editedImages: Record<string, string>; // mediaId -> edited dataUrl
-  collages: string[]; // standalone collage data URLs
+  editedImages: Record<string, EditedImageData>; // mediaId -> edited image data
+  generatedImages: GeneratedImage[]; // collages and template images
   isDirty: boolean;
 
   addMedia: (mediaId: string) => void;
@@ -23,23 +41,24 @@ interface ComposerState {
   togglePlatform: (platform: Platform) => void;
   setCaptionSuggestions: (suggestions: CaptionSuggestion[]) => void;
   setViralityScore: (score: ViralityScore | null) => void;
-  setEditedImage: (mediaId: string, dataUrl: string) => void;
+  setEditedImage: (mediaId: string, data: EditedImageData) => void;
   removeEditedImage: (mediaId: string) => void;
-  addCollage: (dataUrl: string) => void;
-  removeCollage: (index: number) => void;
+  getEditedImage: (mediaId: string) => EditedImageData | undefined;
+  addGeneratedImage: (dataUrl: string, type: "collage" | "template") => void;
+  removeGeneratedImage: (index: number) => void;
   reset: () => void;
 }
 
 const defaultState = {
   selectedMediaIds: [],
   postMedia: [],
-  caption: '',
+  caption: "",
   hashtags: [],
-  platforms: ['instagram', 'threads', 'twitter'] as Platform[],
+  platforms: ["instagram", "threads", "twitter"] as Platform[],
   captionSuggestions: [],
   viralityScore: null,
-  editedImages: {} as Record<string, string>,
-  collages: [] as string[],
+  editedImages: {} as Record<string, EditedImageData>,
+  generatedImages: [] as GeneratedImage[],
   isDirty: false,
 };
 
@@ -90,7 +109,7 @@ export const useComposerStore = create<ComposerState>((set) => ({
 
   addHashtag: (hashtag) =>
     set((state) => {
-      const clean = hashtag.replace(/^#/, '').trim();
+      const clean = hashtag.replace(/^#/, "").trim();
       if (!clean || state.hashtags.includes(clean)) return state;
       return { hashtags: [...state.hashtags, clean], isDirty: true };
     }),
@@ -109,31 +128,37 @@ export const useComposerStore = create<ComposerState>((set) => ({
       isDirty: true,
     })),
 
-  setCaptionSuggestions: (suggestions) => set({ captionSuggestions: suggestions }),
+  setCaptionSuggestions: (suggestions) =>
+    set({ captionSuggestions: suggestions }),
 
   setViralityScore: (score) => set({ viralityScore: score }),
 
-  setEditedImage: (mediaId, dataUrl) =>
+  setEditedImage: (mediaId, data) =>
     set((state) => ({
-      editedImages: { ...state.editedImages, [mediaId]: dataUrl },
+      editedImages: { ...state.editedImages, [mediaId]: data },
       isDirty: true,
     })),
+
+  getEditedImage: (mediaId): EditedImageData | undefined => {
+    return useComposerStore.getState().editedImages[mediaId];
+  },
 
   removeEditedImage: (mediaId) =>
     set((state) => {
-      const { [mediaId]: _, ...rest } = state.editedImages;
+      const { [mediaId]: _removed, ...rest } = state.editedImages;
+      void _removed; // Explicitly mark as intentionally unused
       return { editedImages: rest, isDirty: true };
     }),
 
-  addCollage: (dataUrl) =>
+  addGeneratedImage: (dataUrl, type) =>
     set((state) => ({
-      collages: [...state.collages, dataUrl],
+      generatedImages: [...state.generatedImages, { dataUrl, type }],
       isDirty: true,
     })),
 
-  removeCollage: (index) =>
+  removeGeneratedImage: (index) =>
     set((state) => ({
-      collages: state.collages.filter((_, i) => i !== index),
+      generatedImages: state.generatedImages.filter((_, i) => i !== index),
       isDirty: true,
     })),
 

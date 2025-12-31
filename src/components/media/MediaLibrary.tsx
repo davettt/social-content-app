@@ -1,16 +1,16 @@
-import { useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useDropzone } from 'react-dropzone';
-import { useMedia, useUploadMedia, useDeleteMedia } from '../../hooks/useMedia';
-import { useProject } from '../../hooks/useProjects';
-import { Button } from '../common/Button';
-import { Modal } from '../common/Modal';
-import { PageLoader } from '../common/LoadingSpinner';
-import { ImageEditor } from '../editor/ImageEditor';
-import { VideoEditor } from '../editor/VideoEditor';
-import { CollageBuilder } from '../editor/CollageBuilder';
-import { useComposerStore } from '../../stores/composerStore';
-import type { Media } from '../../types';
+import { useState, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useDropzone } from "react-dropzone";
+import { useMedia, useUploadMedia, useDeleteMedia } from "../../hooks/useMedia";
+import { useProject } from "../../hooks/useProjects";
+import { Button } from "../common/Button";
+import { Modal } from "../common/Modal";
+import { PageLoader } from "../common/LoadingSpinner";
+import { ImageEditor } from "../editor/ImageEditor";
+import { VideoEditor } from "../editor/VideoEditor";
+import { CollageBuilder } from "../editor/CollageBuilder";
+import { useComposerStore } from "../../stores/composerStore";
+import type { Media } from "../../types";
 
 export function MediaLibrary() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -19,9 +19,9 @@ export function MediaLibrary() {
   const { data: media, isLoading } = useMedia(projectId);
   const uploadMedia = useUploadMedia();
   const deleteMedia = useDeleteMedia();
-  const { addCollage } = useComposerStore();
+  const { addGeneratedImage } = useComposerStore();
 
-  const [filter, setFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [filter, setFilter] = useState<"all" | "image" | "video">("all");
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [editingImage, setEditingImage] = useState<Media | null>(null);
   const [editingVideo, setEditingVideo] = useState<Media | null>(null);
@@ -39,21 +39,21 @@ export function MediaLibrary() {
         setIsUploading(false);
       }
     },
-    [projectId, uploadMedia]
+    [projectId, uploadMedia],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif'],
-      'video/*': ['.mp4', '.mov', '.webm'],
+      "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"],
+      "video/*": [".mp4", ".mov", ".webm"],
     },
   });
 
   if (isLoading) return <PageLoader />;
 
   const filteredMedia =
-    filter === 'all' ? media : media?.filter((m) => m.type === filter);
+    filter === "all" ? media : media?.filter((m) => m.type === filter);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -69,22 +69,24 @@ export function MediaLibrary() {
           <Button
             variant="secondary"
             onClick={() => setShowCollageBuilder(true)}
-            disabled={!media || media.filter(m => m.type === 'image').length < 2}
+            disabled={
+              !media || media.filter((m) => m.type === "image").length < 2
+            }
           >
             Create Collage
           </Button>
           <div className="flex bg-gray-100 rounded-lg p-1">
-            {(['all', 'image', 'video'] as const).map((f) => (
+            {(["all", "image", "video"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize transition-colors ${
                   filter === f
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                {f === 'all' ? 'All' : f === 'image' ? 'Photos' : 'Videos'}
+                {f === "all" ? "All" : f === "image" ? "Photos" : "Videos"}
               </button>
             ))}
           </div>
@@ -96,8 +98,8 @@ export function MediaLibrary() {
         {...getRootProps()}
         className={`mb-8 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
           isDragActive
-            ? 'border-primary-500 bg-primary-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? "border-primary-500 bg-primary-50"
+            : "border-gray-300 hover:border-gray-400"
         }`}
       >
         <input {...getInputProps()} />
@@ -124,7 +126,7 @@ export function MediaLibrary() {
               />
             </svg>
             <p className="mt-2 text-gray-600">
-              Drag and drop photos or videos, or{' '}
+              Drag and drop photos or videos, or{" "}
               <span className="text-primary-600 font-medium">browse</span>
             </p>
             <p className="mt-1 text-sm text-gray-400">
@@ -143,7 +145,7 @@ export function MediaLibrary() {
               media={item}
               onClick={() => setSelectedMedia(item)}
               onDelete={() => {
-                if (projectId && confirm('Delete this media?')) {
+                if (projectId && confirm("Delete this media?")) {
                   deleteMedia.mutate({ projectId, mediaId: item.id });
                 }
               }}
@@ -169,7 +171,7 @@ export function MediaLibrary() {
             onClose={() => setSelectedMedia(null)}
             onEdit={(m) => {
               setSelectedMedia(null);
-              if (m.type === 'image') {
+              if (m.type === "image") {
                 setEditingImage(m);
               } else {
                 setEditingVideo(m);
@@ -184,7 +186,7 @@ export function MediaLibrary() {
         <ImageEditor
           media={editingImage}
           brandKit={project?.brandKit}
-          onSave={(_dataUrl, _edits) => {
+          onSave={() => {
             // For now, just close - in future could save edited version
             setEditingImage(null);
           }}
@@ -196,7 +198,7 @@ export function MediaLibrary() {
       {editingVideo && (
         <VideoEditor
           media={editingVideo}
-          onSave={(_edits) => {
+          onSave={() => {
             // For now, just close - in future could save edited version
             setEditingVideo(null);
           }}
@@ -238,7 +240,7 @@ export function MediaLibrary() {
               <Button
                 onClick={() => {
                   // Download the collage
-                  const link = document.createElement('a');
+                  const link = document.createElement("a");
                   link.href = collageResult;
                   link.download = `collage-${Date.now()}.png`;
                   link.click();
@@ -251,7 +253,7 @@ export function MediaLibrary() {
                 variant="secondary"
                 onClick={() => {
                   // Add collage to composer store and navigate
-                  addCollage(collageResult);
+                  addGeneratedImage(collageResult, "collage");
                   setCollageResult(null);
                   navigate(`/projects/${projectId}/compose`);
                 }}
@@ -288,7 +290,7 @@ function MediaCard({
       <img
         src={`/media/${media.thumbnailPath}`}
         alt={media.filename}
-        className="w-full h-full object-cover cursor-pointer"
+        className="w-full h-full object-cover object-center cursor-pointer"
         onClick={onClick}
         onError={(e) => {
           // Fallback for missing thumbnails
@@ -296,10 +298,14 @@ function MediaCard({
         }}
       />
 
-      {media.type === 'video' && (
+      {media.type === "video" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-12 h-12 bg-black/50 rounded-full flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-6 h-6 text-white"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path d="M8 5v14l11-7z" />
             </svg>
           </div>
@@ -315,8 +321,18 @@ function MediaCard({
         }}
         className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
 
@@ -329,11 +345,19 @@ function MediaCard({
   );
 }
 
-function MediaDetail({ media, onClose, onEdit }: { media: Media; onClose: () => void; onEdit: (m: Media) => void }) {
+function MediaDetail({
+  media,
+  onClose,
+  onEdit,
+}: {
+  media: Media;
+  onClose: () => void;
+  onEdit: (m: Media) => void;
+}) {
   return (
     <div className="p-6">
       <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-6">
-        {media.type === 'image' ? (
+        {media.type === "image" ? (
           <img
             src={`/media/${media.originalPath}`}
             alt={media.filename}
@@ -393,7 +417,7 @@ function MediaDetail({ media, onClose, onEdit }: { media: Media; onClose: () => 
           Close
         </Button>
         <Button onClick={() => onEdit(media)}>
-          Edit {media.type === 'image' ? 'Image' : 'Video'}
+          Edit {media.type === "image" ? "Image" : "Video"}
         </Button>
       </div>
     </div>

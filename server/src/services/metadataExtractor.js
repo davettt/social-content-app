@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
-import ExifParser from 'exif-parser';
-import sharp from 'sharp';
+import fs from "fs/promises";
+import ExifParser from "exif-parser";
+import sharp from "sharp";
 
 export async function extractMetadata(filePath, type) {
   const metadata = {
@@ -13,7 +13,7 @@ export async function extractMetadata(filePath, type) {
   };
 
   try {
-    if (type === 'image') {
+    if (type === "image") {
       // Get basic image dimensions
       const sharpMeta = await sharp(filePath).metadata();
       metadata.width = sharpMeta.width || 0;
@@ -29,11 +29,11 @@ export async function extractMetadata(filePath, type) {
           // Date taken
           if (exifData.tags.DateTimeOriginal) {
             metadata.dateTaken = new Date(
-              exifData.tags.DateTimeOriginal * 1000
+              exifData.tags.DateTimeOriginal * 1000,
             ).toISOString();
           } else if (exifData.tags.CreateDate) {
             metadata.dateTaken = new Date(
-              exifData.tags.CreateDate * 1000
+              exifData.tags.CreateDate * 1000,
             ).toISOString();
           }
 
@@ -47,16 +47,16 @@ export async function extractMetadata(filePath, type) {
           }
 
           // Camera info
-          const make = exifData.tags.Make || '';
-          const model = exifData.tags.Model || '';
+          const make = exifData.tags.Make || "";
+          const model = exifData.tags.Model || "";
           if (make || model) {
             metadata.camera = `${make} ${model}`.trim();
           }
         }
       } catch (exifError) {
-        console.warn('Could not extract EXIF data:', exifError.message);
+        console.warn("Could not extract EXIF data:", exifError.message);
       }
-    } else if (type === 'video') {
+    } else if (type === "video") {
       // Video metadata extraction would use FFprobe
       // For now, we'll set basic defaults
       metadata.width = 1920;
@@ -64,7 +64,7 @@ export async function extractMetadata(filePath, type) {
       metadata.duration = 0;
     }
   } catch (error) {
-    console.error('Error extracting metadata:', error);
+    console.error("Error extracting metadata:", error);
   }
 
   return metadata;

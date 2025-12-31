@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCreateProject, useUpdateProject } from '../../hooks/useProjects';
-import { useAnalyzeWebsite } from '../../hooks/useAI';
-import { Button } from '../common/Button';
-import { Input, Textarea } from '../common/Input';
-import type { BusinessInfo, BrandKit } from '../../types';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCreateProject, useUpdateProject } from "../../hooks/useProjects";
+import { useAnalyzeWebsite } from "../../hooks/useAI";
+import { Button } from "../common/Button";
+import { Input, Textarea } from "../common/Input";
+import type { BusinessInfo, BrandKit } from "../../types";
 
-type SetupStep = 'name' | 'method' | 'website' | 'questionnaire' | 'review';
+type SetupStep = "name" | "method" | "website" | "questionnaire" | "review";
 
 export function ProjectSetup() {
   const navigate = useNavigate();
@@ -14,26 +14,26 @@ export function ProjectSetup() {
   const updateProject = useUpdateProject();
   const analyzeWebsite = useAnalyzeWebsite();
 
-  const [step, setStep] = useState<SetupStep>('name');
-  const [projectName, setProjectName] = useState('');
+  const [step, setStep] = useState<SetupStep>("name");
+  const [projectName, setProjectName] = useState("");
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [additionalPages, setAdditionalPages] = useState<string[]>([]);
   const [businessInfo, setBusinessInfo] = useState<Partial<BusinessInfo>>({
-    description: '',
+    description: "",
     services: [],
-    tone: 'professional',
+    tone: "professional",
   });
   const [brandKit, setBrandKit] = useState<Partial<BrandKit>>({
-    primaryColor: '#3b82f6',
-    secondaryColor: '#f59e0b',
-    accentColor: '#10b981',
+    primaryColor: "#3b82f6",
+    secondaryColor: "#f59e0b",
+    accentColor: "#10b981",
   });
 
   const handleCreateProject = async () => {
     const result = await createProject.mutateAsync({ name: projectName });
     setProjectId(result.id);
-    setStep('method');
+    setStep("method");
   };
 
   const handleAnalyzeWebsite = async () => {
@@ -50,18 +50,18 @@ export function ProjectSetup() {
         industry: analysis.industry,
         services: analysis.services,
         targetAudience: analysis.targetAudience,
-        tone: analysis.tone as BusinessInfo['tone'],
+        tone: analysis.tone as BusinessInfo["tone"],
       });
       setBrandKit({
-        primaryColor: analysis.suggestedColors?.primary || '#3b82f6',
-        secondaryColor: analysis.suggestedColors?.secondary || '#f59e0b',
-        accentColor: analysis.suggestedColors?.accent || '#10b981',
+        primaryColor: analysis.suggestedColors?.primary || "#3b82f6",
+        secondaryColor: analysis.suggestedColors?.secondary || "#f59e0b",
+        accentColor: analysis.suggestedColors?.accent || "#10b981",
         fonts: {
-          heading: analysis.suggestedFonts?.heading || 'Inter',
-          body: analysis.suggestedFonts?.body || 'Inter',
+          heading: analysis.suggestedFonts?.heading || "Inter",
+          body: analysis.suggestedFonts?.body || "Inter",
         },
       });
-      setStep('review');
+      setStep("review");
     }
   };
 
@@ -80,27 +80,42 @@ export function ProjectSetup() {
     <div className="max-w-2xl mx-auto px-4 py-12">
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4">
-          {(['name', 'method', 'website', 'questionnaire', 'review'] as SetupStep[]).map(
-            (s, i) => (
-              <div
-                key={s}
-                className={`h-1 flex-1 rounded-full ${
-                  i <= ['name', 'method', 'website', 'questionnaire', 'review'].indexOf(step)
-                    ? 'bg-primary-500'
-                    : 'bg-gray-200'
-                }`}
-              />
-            )
-          )}
+          {(
+            [
+              "name",
+              "method",
+              "website",
+              "questionnaire",
+              "review",
+            ] as SetupStep[]
+          ).map((s, i) => (
+            <div
+              key={s}
+              className={`h-1 flex-1 rounded-full ${
+                i <=
+                [
+                  "name",
+                  "method",
+                  "website",
+                  "questionnaire",
+                  "review",
+                ].indexOf(step)
+                  ? "bg-primary-500"
+                  : "bg-gray-200"
+              }`}
+            />
+          ))}
         </div>
       </div>
 
-      {step === 'name' && (
+      {step === "name" && (
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Create a New Project</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Create a New Project
+          </h1>
           <p className="text-gray-600 mb-6">
-            Start by giving your project a name. This could be your business name or
-            brand.
+            Start by giving your project a name. This could be your business
+            name or brand.
           </p>
 
           <Input
@@ -123,16 +138,18 @@ export function ProjectSetup() {
         </div>
       )}
 
-      {step === 'method' && (
+      {step === "method" && (
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Set Up Your Brand</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Set Up Your Brand
+          </h1>
           <p className="text-gray-600 mb-6">
             How would you like to set up your brand profile?
           </p>
 
           <div className="grid gap-4">
             <button
-              onClick={() => setStep('website')}
+              onClick={() => setStep("website")}
               className="p-6 text-left border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-colors"
             >
               <div className="flex items-center gap-4">
@@ -152,7 +169,9 @@ export function ProjectSetup() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Analyze My Website</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    Analyze My Website
+                  </h3>
                   <p className="text-sm text-gray-500">
                     AI will extract your brand info from your website
                   </p>
@@ -161,7 +180,7 @@ export function ProjectSetup() {
             </button>
 
             <button
-              onClick={() => setStep('questionnaire')}
+              onClick={() => setStep("questionnaire")}
               className="p-6 text-left border-2 border-gray-200 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-colors"
             >
               <div className="flex items-center gap-4">
@@ -181,7 +200,9 @@ export function ProjectSetup() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Fill Out Questionnaire</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    Fill Out Questionnaire
+                  </h3>
                   <p className="text-sm text-gray-500">
                     Manually enter your business details
                   </p>
@@ -192,9 +213,11 @@ export function ProjectSetup() {
         </div>
       )}
 
-      {step === 'website' && (
+      {step === "website" && (
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Analyze Your Website</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Analyze Your Website
+          </h1>
           <p className="text-gray-600 mb-6">
             Enter your website URL and we'll extract your brand information.
           </p>
@@ -226,11 +249,23 @@ export function ProjectSetup() {
                   <Button
                     variant="ghost"
                     onClick={() =>
-                      setAdditionalPages(additionalPages.filter((_, i) => i !== index))
+                      setAdditionalPages(
+                        additionalPages.filter((_, i) => i !== index),
+                      )
                     }
                   >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </Button>
                 </div>
@@ -238,7 +273,7 @@ export function ProjectSetup() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setAdditionalPages([...additionalPages, ''])}
+                onClick={() => setAdditionalPages([...additionalPages, ""])}
               >
                 + Add Page
               </Button>
@@ -246,7 +281,7 @@ export function ProjectSetup() {
           </div>
 
           <div className="mt-6 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep('method')}>
+            <Button variant="secondary" onClick={() => setStep("method")}>
               Back
             </Button>
             <Button
@@ -260,9 +295,11 @@ export function ProjectSetup() {
         </div>
       )}
 
-      {step === 'questionnaire' && (
+      {step === "questionnaire" && (
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Tell Us About Your Business</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Tell Us About Your Business
+          </h1>
           <p className="text-gray-600 mb-6">
             Fill in your business details to help us create better content.
           </p>
@@ -274,14 +311,17 @@ export function ProjectSetup() {
               rows={3}
               value={businessInfo.description}
               onChange={(e) =>
-                setBusinessInfo({ ...businessInfo, description: e.target.value })
+                setBusinessInfo({
+                  ...businessInfo,
+                  description: e.target.value,
+                })
               }
             />
 
             <Input
               label="Industry"
               placeholder="e.g., Technology, Food & Beverage, Travel"
-              value={businessInfo.industry || ''}
+              value={businessInfo.industry || ""}
               onChange={(e) =>
                 setBusinessInfo({ ...businessInfo, industry: e.target.value })
               }
@@ -290,9 +330,12 @@ export function ProjectSetup() {
             <Input
               label="Target Audience"
               placeholder="e.g., Small business owners aged 25-45"
-              value={businessInfo.targetAudience || ''}
+              value={businessInfo.targetAudience || ""}
               onChange={(e) =>
-                setBusinessInfo({ ...businessInfo, targetAudience: e.target.value })
+                setBusinessInfo({
+                  ...businessInfo,
+                  targetAudience: e.target.value,
+                })
               }
             />
 
@@ -301,21 +344,27 @@ export function ProjectSetup() {
                 Brand Tone
               </label>
               <div className="flex flex-wrap gap-2">
-                {(['professional', 'casual', 'fun', 'inspirational', 'educational'] as const).map(
-                  (tone) => (
-                    <button
-                      key={tone}
-                      onClick={() => setBusinessInfo({ ...businessInfo, tone })}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
-                        businessInfo.tone === tone
-                          ? 'bg-primary-100 text-primary-700 border-2 border-primary-500'
-                          : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'
-                      }`}
-                    >
-                      {tone}
-                    </button>
-                  )
-                )}
+                {(
+                  [
+                    "professional",
+                    "casual",
+                    "fun",
+                    "inspirational",
+                    "educational",
+                  ] as const
+                ).map((tone) => (
+                  <button
+                    key={tone}
+                    onClick={() => setBusinessInfo({ ...businessInfo, tone })}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
+                      businessInfo.tone === tone
+                        ? "bg-primary-100 text-primary-700 border-2 border-primary-500"
+                        : "bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200"
+                    }`}
+                  >
+                    {tone}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -341,7 +390,10 @@ export function ProjectSetup() {
                     type="color"
                     value={brandKit.secondaryColor}
                     onChange={(e) =>
-                      setBrandKit({ ...brandKit, secondaryColor: e.target.value })
+                      setBrandKit({
+                        ...brandKit,
+                        secondaryColor: e.target.value,
+                      })
                     }
                     className="block w-12 h-12 rounded-lg cursor-pointer"
                   />
@@ -362,33 +414,42 @@ export function ProjectSetup() {
           </div>
 
           <div className="mt-6 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep('method')}>
+            <Button variant="secondary" onClick={() => setStep("method")}>
               Back
             </Button>
-            <Button onClick={() => setStep('review')}>Continue</Button>
+            <Button onClick={() => setStep("review")}>Continue</Button>
           </div>
         </div>
       )}
 
-      {step === 'review' && (
+      {step === "review" && (
         <div className="card p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Review Your Project</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Review Your Project
+          </h1>
           <p className="text-gray-600 mb-6">
             Review the information below and make any changes before saving.
           </p>
 
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Project Name</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">
+                Project Name
+              </h3>
               <p className="text-lg font-semibold">{projectName}</p>
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-1">
+                Description
+              </h3>
               <Textarea
                 value={businessInfo.description}
                 onChange={(e) =>
-                  setBusinessInfo({ ...businessInfo, description: e.target.value })
+                  setBusinessInfo({
+                    ...businessInfo,
+                    description: e.target.value,
+                  })
                 }
                 rows={3}
               />
@@ -396,11 +457,16 @@ export function ProjectSetup() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Industry</h3>
+                <h3 className="text-sm font-medium text-gray-500 mb-1">
+                  Industry
+                </h3>
                 <Input
-                  value={businessInfo.industry || ''}
+                  value={businessInfo.industry || ""}
                   onChange={(e) =>
-                    setBusinessInfo({ ...businessInfo, industry: e.target.value })
+                    setBusinessInfo({
+                      ...businessInfo,
+                      industry: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -411,7 +477,9 @@ export function ProjectSetup() {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Brand Colors</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-2">
+                Brand Colors
+              </h3>
               <div className="flex gap-2">
                 <div
                   className="w-10 h-10 rounded-lg"
@@ -430,10 +498,16 @@ export function ProjectSetup() {
           </div>
 
           <div className="mt-8 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep('questionnaire')}>
+            <Button
+              variant="secondary"
+              onClick={() => setStep("questionnaire")}
+            >
               Edit Details
             </Button>
-            <Button onClick={handleSaveProject} isLoading={updateProject.isPending}>
+            <Button
+              onClick={handleSaveProject}
+              isLoading={updateProject.isPending}
+            >
               Save Project
             </Button>
           </div>

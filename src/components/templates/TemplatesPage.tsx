@@ -1,129 +1,141 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from '../common/Button';
-import type { TemplateCategory } from '../../types';
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Button } from "../common/Button";
+import { TEMPLATES } from "./templateData";
+import type { Template, TemplateCategory } from "../../types";
 
-interface TemplatePreview {
-  id: string;
-  name: string;
-  category: TemplateCategory;
-  description: string;
-  thumbnail: string;
-  platforms: string[];
+const CATEGORIES: { value: TemplateCategory | "all"; label: string }[] = [
+  { value: "all", label: "All Templates" },
+  { value: "story", label: "Stories" },
+  { value: "quote", label: "Quotes" },
+  { value: "tips", label: "Tips" },
+  { value: "product", label: "Products" },
+  { value: "testimonial", label: "Testimonials" },
+  { value: "behind-the-scenes", label: "Behind the Scenes" },
+];
+
+// Visual preview component for templates
+function TemplatePreviewCard({ template }: { template: Template }) {
+  const { style } = template;
+
+  // Get background style
+  const getBgStyle = () => {
+    if (style.backgroundColor) {
+      // Check if it's a gradient
+      if (style.backgroundColor.includes("gradient")) {
+        return { background: style.backgroundColor };
+      }
+      return { backgroundColor: style.backgroundColor };
+    }
+    // Fallback gradient based on category
+    const gradients: Record<string, string> = {
+      quote: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      story: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+      tips: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+      product: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+      testimonial: "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)",
+      "behind-the-scenes": "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+    };
+    return { background: gradients[template.category] || gradients.quote };
+  };
+
+  return (
+    <div
+      className="aspect-square rounded-lg overflow-hidden relative"
+      style={getBgStyle()}
+    >
+      {/* Content preview based on template type */}
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-center p-4"
+        style={{ color: style.textColor }}
+      >
+        {template.category === "quote" && (
+          <>
+            <div className="text-4xl mb-2" style={{ opacity: 0.3 }}>
+              "
+            </div>
+            <p
+              className="text-center text-sm px-2 leading-relaxed"
+              style={{
+                fontFamily: style.font,
+                textShadow: style.textShadow
+                  ? "1px 1px 2px rgba(0,0,0,0.3)"
+                  : "none",
+              }}
+            >
+              Your inspiring quote goes here...
+            </p>
+            <div className="text-4xl mt-2" style={{ opacity: 0.3 }}>
+              "
+            </div>
+          </>
+        )}
+
+        {template.category === "tips" && (
+          <>
+            <div className="text-5xl font-bold mb-2" style={{ opacity: 0.2 }}>
+              01
+            </div>
+            <p className="text-sm text-center">Your tip here</p>
+          </>
+        )}
+
+        {template.category === "story" && (
+          <>
+            <div className="w-16 h-16 bg-white/20 rounded-lg mb-2 flex items-center justify-center">
+              <span className="text-2xl">📸</span>
+            </div>
+            <p className="text-xs opacity-70">Your story</p>
+          </>
+        )}
+
+        {template.category === "product" && (
+          <>
+            <div className="w-20 h-20 bg-white/30 rounded-lg mb-2 flex items-center justify-center">
+              <span className="text-2xl">✨</span>
+            </div>
+            <p className="text-xs font-medium">Product Name</p>
+          </>
+        )}
+
+        {template.category === "testimonial" && (
+          <>
+            <div className="text-lg mb-1">★★★★★</div>
+            <p className="text-xs text-center italic px-2">
+              "Amazing product!"
+            </p>
+            <div className="w-8 h-8 bg-white/30 rounded-full mt-2" />
+          </>
+        )}
+
+        {template.category === "behind-the-scenes" && (
+          <>
+            <div className="text-2xl mb-1">🎬</div>
+            <p className="text-xs opacity-70">Behind the scenes</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
-
-// Built-in templates
-const TEMPLATES: TemplatePreview[] = [
-  {
-    id: 'day-in-life',
-    name: 'Day in the Life',
-    category: 'story',
-    description: 'Series of timestamped moments throughout a day',
-    thumbnail: 'gradient-1',
-    platforms: ['instagram', 'threads'],
-  },
-  {
-    id: 'before-after',
-    name: 'Before & After',
-    category: 'story',
-    description: 'Side-by-side comparison showing transformation',
-    thumbnail: 'gradient-2',
-    platforms: ['instagram', 'twitter'],
-  },
-  {
-    id: 'quote-minimal',
-    name: 'Minimal Quote',
-    category: 'quote',
-    description: 'Clean quote design with subtle background',
-    thumbnail: 'gradient-3',
-    platforms: ['instagram', 'linkedin'],
-  },
-  {
-    id: 'quote-bold',
-    name: 'Bold Quote',
-    category: 'quote',
-    description: 'Eye-catching quote with strong typography',
-    thumbnail: 'gradient-4',
-    platforms: ['instagram', 'twitter'],
-  },
-  {
-    id: 'carousel-tips',
-    name: 'Tips Carousel',
-    category: 'tips',
-    description: 'Multi-slide carousel with numbered tips',
-    thumbnail: 'gradient-5',
-    platforms: ['instagram', 'linkedin'],
-  },
-  {
-    id: 'carousel-how-to',
-    name: 'How-To Guide',
-    category: 'carousel',
-    description: 'Step-by-step tutorial format',
-    thumbnail: 'gradient-6',
-    platforms: ['instagram'],
-  },
-  {
-    id: 'product-showcase',
-    name: 'Product Showcase',
-    category: 'product',
-    description: 'Highlight product features elegantly',
-    thumbnail: 'gradient-7',
-    platforms: ['instagram', 'linkedin'],
-  },
-  {
-    id: 'testimonial',
-    name: 'Testimonial Card',
-    category: 'testimonial',
-    description: 'Customer review with photo and quote',
-    thumbnail: 'gradient-8',
-    platforms: ['instagram', 'linkedin'],
-  },
-  {
-    id: 'bts-story',
-    name: 'Behind the Scenes',
-    category: 'behind-the-scenes',
-    description: 'Casual, authentic look at your process',
-    thumbnail: 'gradient-9',
-    platforms: ['instagram', 'threads'],
-  },
-];
-
-const CATEGORIES: { value: TemplateCategory | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Templates' },
-  { value: 'story', label: 'Stories' },
-  { value: 'quote', label: 'Quotes' },
-  { value: 'carousel', label: 'Carousels' },
-  { value: 'tips', label: 'Tips' },
-  { value: 'product', label: 'Products' },
-  { value: 'testimonial', label: 'Testimonials' },
-  { value: 'behind-the-scenes', label: 'Behind the Scenes' },
-];
-
-const GRADIENTS: Record<string, string> = {
-  'gradient-1': 'from-purple-500 to-pink-500',
-  'gradient-2': 'from-blue-500 to-cyan-500',
-  'gradient-3': 'from-gray-700 to-gray-900',
-  'gradient-4': 'from-orange-500 to-red-500',
-  'gradient-5': 'from-green-500 to-teal-500',
-  'gradient-6': 'from-indigo-500 to-purple-500',
-  'gradient-7': 'from-amber-500 to-orange-500',
-  'gradient-8': 'from-rose-500 to-pink-500',
-  'gradient-9': 'from-slate-600 to-slate-800',
-};
 
 export function TemplatesPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplatePreview | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<
+    TemplateCategory | "all"
+  >("all");
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
+    null,
+  );
 
   const filteredTemplates =
-    selectedCategory === 'all'
+    selectedCategory === "all"
       ? TEMPLATES
       : TEMPLATES.filter((t) => t.category === selectedCategory);
 
-  const handleUseTemplate = (template: TemplatePreview) => {
-    // Navigate to composer with template
+  const handleUseTemplate = (template: Template) => {
+    // Navigate to composer with template ID
     navigate(`/projects/${projectId}/compose?template=${template.id}`);
   };
 
@@ -144,8 +156,8 @@ export function TemplatesPage() {
             onClick={() => setSelectedCategory(cat.value)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               selectedCategory === cat.value
-                ? 'bg-primary-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? "bg-primary-600 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             {cat.label}
@@ -158,33 +170,20 @@ export function TemplatesPage() {
         {filteredTemplates.map((template) => (
           <div
             key={template.id}
-            className="card group cursor-pointer overflow-hidden"
+            className="card group cursor-pointer overflow-hidden hover:shadow-lg transition-shadow"
             onClick={() => setSelectedTemplate(template)}
           >
             {/* Template Preview */}
-            <div
-              className={`aspect-square bg-gradient-to-br ${GRADIENTS[template.thumbnail]} flex items-center justify-center`}
-            >
-              <div className="text-white/80 text-center p-8">
-                <div className="text-4xl mb-2">
-                  {template.category === 'quote' && '"'}
-                  {template.category === 'tips' && '1.'}
-                  {template.category === 'story' && '📸'}
-                  {template.category === 'carousel' && '→'}
-                  {template.category === 'product' && '✨'}
-                  {template.category === 'testimonial' && '★'}
-                  {template.category === 'behind-the-scenes' && '🎬'}
-                </div>
-                <p className="text-sm opacity-75">Preview</p>
-              </div>
-            </div>
+            <TemplatePreviewCard template={template} />
 
             {/* Template Info */}
             <div className="p-4">
               <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
                 {template.name}
               </h3>
-              <p className="text-sm text-gray-500 mt-1">{template.description}</p>
+              <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                {template.description}
+              </p>
 
               <div className="flex items-center gap-2 mt-3">
                 {template.platforms.map((platform) => (
@@ -204,18 +203,72 @@ export function TemplatesPage() {
       {/* Template Detail Modal */}
       {selectedTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl max-w-lg w-full overflow-hidden">
-            <div
-              className={`aspect-video bg-gradient-to-br ${GRADIENTS[selectedTemplate.thumbnail]} flex items-center justify-center`}
-            >
-              <div className="text-white text-center">
-                <p className="text-lg font-medium">{selectedTemplate.name}</p>
+          <div className="bg-white rounded-xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Preview */}
+            <div className="p-6 bg-gray-100">
+              <div className="max-w-xs mx-auto">
+                <TemplatePreviewCard template={selectedTemplate} />
               </div>
             </div>
 
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-900">{selectedTemplate.name}</h2>
-              <p className="text-gray-600 mt-2">{selectedTemplate.description}</p>
+            {/* Info */}
+            <div className="p-6 overflow-y-auto">
+              <h2 className="text-xl font-bold text-gray-900">
+                {selectedTemplate.name}
+              </h2>
+              <p className="text-gray-600 mt-2">
+                {selectedTemplate.description}
+              </p>
+
+              {/* Layout info */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">
+                  <span className="font-medium text-gray-700">Format: </span>
+                  {selectedTemplate.layout.type === "carousel"
+                    ? `${selectedTemplate.layout.slides.length}-slide carousel`
+                    : "Single image"}
+                  {" • "}
+                  {selectedTemplate.layout.slides[0]?.aspectRatio} aspect ratio
+                </p>
+              </div>
+
+              {/* Caption prompts preview */}
+              {selectedTemplate.captionPrompts &&
+                selectedTemplate.captionPrompts.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Content you'll add:
+                    </p>
+                    <div className="space-y-2">
+                      {selectedTemplate.captionPrompts.map((prompt, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="text-gray-500">
+                            {prompt.placeholder}
+                          </span>
+                          <p className="text-gray-400 italic text-xs mt-0.5">
+                            e.g., "{prompt.example}"
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Suggested hashtags */}
+              {selectedTemplate.suggestedHashtags && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    Suggested hashtags:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedTemplate.suggestedHashtags.map((tag) => (
+                      <span key={tag} className="text-xs text-primary-600">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 mt-4">
                 <span className="text-sm text-gray-500">Works on:</span>
@@ -230,10 +283,16 @@ export function TemplatesPage() {
               </div>
 
               <div className="flex gap-3 mt-6">
-                <Button variant="secondary" onClick={() => setSelectedTemplate(null)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setSelectedTemplate(null)}
+                >
                   Cancel
                 </Button>
-                <Button onClick={() => handleUseTemplate(selectedTemplate)} className="flex-1">
+                <Button
+                  onClick={() => handleUseTemplate(selectedTemplate)}
+                  className="flex-1"
+                >
                   Use This Template
                 </Button>
               </div>

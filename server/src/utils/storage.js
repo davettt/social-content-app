@@ -1,13 +1,13 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.join(__dirname, '..', '..', '..', 'local_data');
-const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const DATA_DIR = path.join(__dirname, "..", "..", "..", "local_data");
+const PROJECTS_DIR = path.join(DATA_DIR, "projects");
+const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 
 export async function initializeStorage() {
   // Create main directories
@@ -22,16 +22,16 @@ export async function initializeStorage() {
       SETTINGS_FILE,
       JSON.stringify(
         {
-          version: '1.0.0',
+          version: "1.0.0",
           createdAt: new Date().toISOString(),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   }
 
-  console.log('Storage initialized at:', DATA_DIR);
+  console.log("Storage initialized at:", DATA_DIR);
 }
 
 export async function getProjectDir(projectId) {
@@ -43,12 +43,12 @@ export async function ensureProjectDirs(projectId) {
   const projectDir = await getProjectDir(projectId);
   const dirs = [
     projectDir,
-    path.join(projectDir, 'media', 'originals'),
-    path.join(projectDir, 'media', 'thumbnails'),
-    path.join(projectDir, 'media', 'processed'),
-    path.join(projectDir, 'posts'),
-    path.join(projectDir, 'exports'),
-    path.join(projectDir, 'brand'),
+    path.join(projectDir, "media", "originals"),
+    path.join(projectDir, "media", "thumbnails"),
+    path.join(projectDir, "media", "processed"),
+    path.join(projectDir, "posts"),
+    path.join(projectDir, "exports"),
+    path.join(projectDir, "brand"),
   ];
 
   for (const dir of dirs) {
@@ -60,10 +60,10 @@ export async function ensureProjectDirs(projectId) {
 
 export async function readJsonFile(filePath) {
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
     return JSON.parse(content);
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error.code === "ENOENT") {
       return null;
     }
     throw error;
@@ -78,7 +78,7 @@ export async function deleteDirectory(dirPath) {
   try {
     await fs.rm(dirPath, { recursive: true, force: true });
   } catch (error) {
-    console.error('Error deleting directory:', error);
+    console.error("Error deleting directory:", error);
     throw error;
   }
 }
@@ -88,7 +88,7 @@ export async function listDirectories(parentDir) {
     const entries = await fs.readdir(parentDir, { withFileTypes: true });
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error.code === "ENOENT") {
       return [];
     }
     throw error;

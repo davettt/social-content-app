@@ -6,21 +6,23 @@ import type {
   MediaUploadResult,
   CaptionSuggestion,
   ViralityScore,
-} from '../types';
+} from "../types";
 
-const API_BASE = '/api';
+const API_BASE = "/api";
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options?.headers,
     },
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Request failed" }));
     throw new Error(error.message || `HTTP error ${response.status}`);
   }
 
@@ -39,60 +41,67 @@ export const projectsApi = {
 
   create: (data: CreateProjectInput) =>
     fetchJson<Project>(`${API_BASE}/projects`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
   update: (id: string, data: UpdateProjectInput) =>
     fetchJson<Project>(`${API_BASE}/projects/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
   delete: (id: string) =>
-    fetchJson<void>(`${API_BASE}/projects/${id}`, { method: 'DELETE' }),
+    fetchJson<void>(`${API_BASE}/projects/${id}`, { method: "DELETE" }),
 };
 
 // Media API
 export const mediaApi = {
   list: (projectId: string, params?: { type?: string; search?: string }) => {
     const searchParams = new URLSearchParams();
-    if (params?.type) searchParams.set('type', params.type);
-    if (params?.search) searchParams.set('search', params.search);
+    if (params?.type) searchParams.set("type", params.type);
+    if (params?.search) searchParams.set("search", params.search);
     const query = searchParams.toString();
     return fetchJson<Media[]>(
-      `${API_BASE}/media/${projectId}${query ? `?${query}` : ''}`
+      `${API_BASE}/media/${projectId}${query ? `?${query}` : ""}`,
     );
   },
 
   get: (projectId: string, mediaId: string) =>
     fetchJson<Media>(`${API_BASE}/media/${projectId}/${mediaId}`),
 
-  upload: async (projectId: string, files: File[]): Promise<MediaUploadResult[]> => {
+  upload: async (
+    projectId: string,
+    files: File[],
+  ): Promise<MediaUploadResult[]> => {
     const formData = new FormData();
-    files.forEach((file) => formData.append('files', file));
+    files.forEach((file) => formData.append("files", file));
 
     const response = await fetch(`${API_BASE}/media/${projectId}`, {
-      method: 'POST',
+      method: "POST",
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error('Upload failed');
+      throw new Error("Upload failed");
     }
 
     return response.json();
   },
 
-  update: (projectId: string, mediaId: string, data: { userMetadata: Partial<Media['userMetadata']> }) =>
+  update: (
+    projectId: string,
+    mediaId: string,
+    data: { userMetadata: Partial<Media["userMetadata"]> },
+  ) =>
     fetchJson<Media>(`${API_BASE}/media/${projectId}/${mediaId}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
   delete: (projectId: string, mediaId: string) =>
     fetchJson<void>(`${API_BASE}/media/${projectId}/${mediaId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     }),
 };
 
@@ -112,11 +121,15 @@ export const aiApi = {
         extractedColorPalette?: string[];
         suggestedFonts?: { heading: string; body: string };
         contactInfo: { email?: string; phone?: string; address?: string };
-        socialHandles: { instagram?: string; twitter?: string; linkedin?: string };
+        socialHandles: {
+          instagram?: string;
+          twitter?: string;
+          linkedin?: string;
+        };
       };
       error?: string;
     }>(`${API_BASE}/ai/analyze-website`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ url, pages }),
     }),
 
@@ -131,17 +144,24 @@ export const aiApi = {
     draftCaption?: string;
     captionStyle?: string;
   }) =>
-    fetchJson<{ captions: CaptionSuggestion[] }>(`${API_BASE}/ai/generate-caption`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    fetchJson<{ captions: CaptionSuggestion[] }>(
+      `${API_BASE}/ai/generate-caption`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 
-  suggestHashtags: (data: { caption: string; industry?: string; platform?: string }) =>
+  suggestHashtags: (data: {
+    caption: string;
+    industry?: string;
+    platform?: string;
+  }) =>
     fetchJson<{
       hashtags: string[];
       categories: { popular: string[]; niche: string[]; branded?: string[] };
     }>(`${API_BASE}/ai/suggest-hashtags`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -153,7 +173,7 @@ export const aiApi = {
     businessContext?: { industry?: string };
   }) =>
     fetchJson<ViralityScore>(`${API_BASE}/ai/virality-score`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     }),
 };
@@ -172,15 +192,19 @@ export const exportApi = {
     fetchJson<{ id: string; status: string; platforms: string[] }>(
       `${API_BASE}/export/prepare`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(data),
-      }
+      },
     ),
 
-  getDownloadUrl: (exportId: string) => `${API_BASE}/export/${exportId}/download`,
+  getDownloadUrl: (exportId: string) =>
+    `${API_BASE}/export/${exportId}/download`,
 
   getStatus: (exportId: string) =>
-    fetchJson<{ id: string; status: string; platforms: string[]; createdAt: string }>(
-      `${API_BASE}/export/${exportId}/status`
-    ),
+    fetchJson<{
+      id: string;
+      status: string;
+      platforms: string[];
+      createdAt: string;
+    }>(`${API_BASE}/export/${exportId}/status`),
 };

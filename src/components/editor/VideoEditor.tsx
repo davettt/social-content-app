@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from '../common/Button';
-import type { Media } from '../../types';
+import { useState, useRef, useEffect } from "react";
+import { Button } from "../common/Button";
+import type { Media } from "../../types";
 
 interface VideoEditorProps {
   media: Media;
@@ -17,10 +17,10 @@ interface VideoEdits {
 }
 
 const SPEED_OPTIONS = [
-  { label: '0.5x', value: 0.5 },
-  { label: '1x', value: 1 },
-  { label: '1.5x', value: 1.5 },
-  { label: '2x', value: 2 },
+  { label: "0.5x", value: 0.5 },
+  { label: "1x", value: 1 },
+  { label: "1.5x", value: 1.5 },
+  { label: "2x", value: 2 },
 ];
 
 export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
@@ -55,12 +55,12 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
       }
     };
 
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("timeupdate", handleTimeUpdate);
 
     return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
     };
   }, [edits.trimStart, edits.trimEnd]);
 
@@ -88,7 +88,10 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
     if (isPlaying) {
       video.pause();
     } else {
-      if (video.currentTime < edits.trimStart || video.currentTime >= edits.trimEnd) {
+      if (
+        video.currentTime < edits.trimStart ||
+        video.currentTime >= edits.trimEnd
+      ) {
         video.currentTime = edits.trimStart;
       }
       video.play();
@@ -99,7 +102,7 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const handleSave = () => {
@@ -141,11 +144,19 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
               className="w-12 h-12 bg-primary-600 rounded-full flex items-center justify-center text-white hover:bg-primary-700"
             >
               {isPlaying ? (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                 </svg>
               ) : (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M8 5v14l11-7z" />
                 </svg>
               )}
@@ -181,7 +192,10 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                   const x = e.clientX - rect.left;
                   const time = (x / rect.width) * duration;
                   if (videoRef.current) {
-                    videoRef.current.currentTime = Math.max(edits.trimStart, Math.min(edits.trimEnd, time));
+                    videoRef.current.currentTime = Math.max(
+                      edits.trimStart,
+                      Math.min(edits.trimEnd, time),
+                    );
                   }
                 }}
               />
@@ -190,7 +204,9 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
             {/* Trim Controls */}
             <div className="flex items-center gap-4 mt-4">
               <div className="flex-1">
-                <label className="block text-sm text-gray-400 mb-1">Trim Start</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Trim Start
+                </label>
                 <input
                   type="range"
                   min="0"
@@ -198,15 +214,22 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                   step="0.1"
                   value={edits.trimStart}
                   onChange={(e) => {
-                    const val = Math.min(Number(e.target.value), edits.trimEnd - 0.5);
+                    const val = Math.min(
+                      Number(e.target.value),
+                      edits.trimEnd - 0.5,
+                    );
                     setEdits({ ...edits, trimStart: val });
                   }}
                   className="w-full"
                 />
-                <span className="text-xs text-gray-500">{formatTime(edits.trimStart)}</span>
+                <span className="text-xs text-gray-500">
+                  {formatTime(edits.trimStart)}
+                </span>
               </div>
               <div className="flex-1">
-                <label className="block text-sm text-gray-400 mb-1">Trim End</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Trim End
+                </label>
                 <input
                   type="range"
                   min="0"
@@ -214,12 +237,17 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                   step="0.1"
                   value={edits.trimEnd}
                   onChange={(e) => {
-                    const val = Math.max(Number(e.target.value), edits.trimStart + 0.5);
+                    const val = Math.max(
+                      Number(e.target.value),
+                      edits.trimStart + 0.5,
+                    );
                     setEdits({ ...edits, trimEnd: val });
                   }}
                   className="w-full"
                 />
-                <span className="text-xs text-gray-500">{formatTime(edits.trimEnd)}</span>
+                <span className="text-xs text-gray-500">
+                  {formatTime(edits.trimEnd)}
+                </span>
               </div>
             </div>
 
@@ -239,8 +267,8 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                     onClick={() => setEdits({ ...edits, speed: opt.value })}
                     className={`px-4 py-2 rounded-lg text-sm font-medium ${
                       edits.speed === opt.value
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? "bg-primary-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                     }`}
                   >
                     {opt.label}
@@ -255,17 +283,44 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                 <button
                   onClick={() => setEdits({ ...edits, muted: !edits.muted })}
                   className={`p-2 rounded-lg ${
-                    edits.muted ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300'
+                    edits.muted
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-700 text-gray-300"
                   }`}
                 >
                   {edits.muted ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                      />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                      />
                     </svg>
                   )}
                 </button>
@@ -276,7 +331,9 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
                   max="1"
                   step="0.1"
                   value={edits.volume}
-                  onChange={(e) => setEdits({ ...edits, volume: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEdits({ ...edits, volume: Number(e.target.value) })
+                  }
                   disabled={edits.muted}
                   className="flex-1"
                 />

@@ -1,5 +1,5 @@
-import { useMutation } from '@tanstack/react-query';
-import { aiApi } from '../services/api';
+import { useMutation } from "@tanstack/react-query";
+import { aiApi } from "../services/api";
 
 export function useAnalyzeWebsite() {
   return useMutation({
@@ -26,8 +26,11 @@ export function useGenerateCaption() {
 
 export function useSuggestHashtags() {
   return useMutation({
-    mutationFn: (data: { caption: string; industry?: string; platform?: string }) =>
-      aiApi.suggestHashtags(data),
+    mutationFn: (data: {
+      caption: string;
+      industry?: string;
+      platform?: string;
+    }) => aiApi.suggestHashtags(data),
   });
 }
 

@@ -1,4 +1,4 @@
-import type { Platform } from './project';
+import type { Platform } from "./project";
 
 export interface PostMedia {
   mediaId: string;
@@ -38,13 +38,13 @@ export interface TextOverlay {
   backgroundColor?: string;
   opacity: number;
   rotation: number;
-  textAlign: 'left' | 'center' | 'right';
+  textAlign: "left" | "center" | "right";
   shadow?: boolean;
 }
 
 export interface CaptionSuggestion {
   text: string;
-  length: 'short' | 'medium' | 'long';
+  length: "short" | "medium" | "long";
   style: string;
 }
 
@@ -74,12 +74,12 @@ export interface Post {
   platformContent: PlatformContent[];
   viralityScore?: ViralityScore;
   templateId?: string;
-  status: 'draft' | 'ready' | 'exported';
+  status: "draft" | "ready" | "exported";
   createdAt: string;
   updatedAt: string;
 }
 
-export type CreatePostInput = Pick<Post, 'projectId' | 'title'> & {
+export type CreatePostInput = Pick<Post, "projectId" | "title"> & {
   media?: PostMedia[];
   caption?: string;
   platforms?: Platform[];

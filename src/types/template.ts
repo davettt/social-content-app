@@ -1,16 +1,16 @@
-import type { Platform } from './project';
+import type { Platform } from "./project";
 
 export type TemplateCategory =
-  | 'story'
-  | 'quote'
-  | 'carousel'
-  | 'product'
-  | 'testimonial'
-  | 'behind-the-scenes'
-  | 'tips';
+  | "story"
+  | "quote"
+  | "carousel"
+  | "product"
+  | "testimonial"
+  | "behind-the-scenes"
+  | "tips";
 
 export interface TemplateElement {
-  type: 'image' | 'text' | 'shape';
+  type: "image" | "text" | "shape";
   position: string; // e.g., 'full', 'top-left', 'bottom', 'center'
   content?: string; // For text elements, can include placeholders like {time}, {caption}
   style?: Record<string, string | number>;
@@ -22,7 +22,7 @@ export interface TemplateSlide {
 }
 
 export interface TemplateLayout {
-  type: 'single' | 'carousel' | 'collage';
+  type: "single" | "carousel" | "collage";
   slides: TemplateSlide[];
 }
 
@@ -34,6 +34,11 @@ export interface TemplateStyle {
   borderRadius?: number;
 }
 
+export interface TemplateCaptionPrompt {
+  placeholder: string; // e.g., "What's the main message you want to share?"
+  example: string; // e.g., "Success isn't owned, it's rented..."
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -42,6 +47,8 @@ export interface Template {
   platforms: Platform[];
   layout: TemplateLayout;
   style: TemplateStyle;
+  captionPrompts?: TemplateCaptionPrompt[];
+  suggestedHashtags?: string[];
   thumbnail?: string;
   isBuiltIn: boolean;
   createdAt: string;

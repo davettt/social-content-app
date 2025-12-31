@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom';
-import { useProjects, useDeleteProject } from '../../hooks/useProjects';
-import { PageLoader } from '../common/LoadingSpinner';
-import type { Project } from '../../types';
+import { Link } from "react-router-dom";
+import { useProjects, useDeleteProject } from "../../hooks/useProjects";
+import { PageLoader } from "../common/LoadingSpinner";
+import type { Project } from "../../types";
 
 export function ProjectsPage() {
   const { data: projects, isLoading, error } = useProjects();
@@ -53,7 +53,7 @@ export function ProjectsPage() {
               key={project.id}
               project={project}
               onDelete={() => {
-                if (confirm('Are you sure you want to delete this project?')) {
+                if (confirm("Are you sure you want to delete this project?")) {
                   deleteProject.mutate(project.id);
                 }
               }}
@@ -81,9 +81,9 @@ function ProjectCard({
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(hours / 24);
 
-    if (hours < 1) return 'Just now';
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    if (days < 7) return `${days} day${days > 1 ? "s" : ""} ago`;
     return date.toLocaleDateString();
   };
 
@@ -105,7 +105,12 @@ function ProjectCard({
             }}
             className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -152,7 +157,9 @@ function EmptyState() {
           />
         </svg>
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
+      <h3 className="text-lg font-medium text-gray-900 mb-2">
+        No projects yet
+      </h3>
       <p className="text-gray-500 mb-6">
         Create your first project to start making viral social content.
       </p>

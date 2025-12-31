@@ -1,15 +1,21 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useProject } from '../../hooks/useProjects';
-import { useMedia } from '../../hooks/useMedia';
-import { useGenerateCaption, useSuggestHashtags, useCalculateViralityScore } from '../../hooks/useAI';
-import { useComposerStore } from '../../stores/composerStore';
-import { Button } from '../common/Button';
-import { Textarea } from '../common/Input';
-import { Modal } from '../common/Modal';
-import { PageLoader } from '../common/LoadingSpinner';
-import { ImageEditor } from '../editor/ImageEditor';
-import type { Platform, Media } from '../../types';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useProject } from "../../hooks/useProjects";
+import { useMedia } from "../../hooks/useMedia";
+import {
+  useGenerateCaption,
+  useSuggestHashtags,
+  useCalculateViralityScore,
+} from "../../hooks/useAI";
+import { useComposerStore } from "../../stores/composerStore";
+import { Button } from "../common/Button";
+import { Textarea } from "../common/Input";
+import { Modal } from "../common/Modal";
+import { PageLoader } from "../common/LoadingSpinner";
+import { ImageEditor } from "../editor/ImageEditor";
+import { TEMPLATES } from "../templates/templateData";
+import { TemplateRenderer } from "../templates/TemplateRenderer";
+import type { Platform, Media, Template } from "../../types";
 
 const PLATFORM_LIMITS: Record<Platform, number> = {
   instagram: 2200,
@@ -25,18 +31,49 @@ const PLATFORM_ICONS: Record<Platform, React.ReactNode> = {
   linkedin: <span className="text-blue-700">in</span>,
 };
 
+const PLATFORM_DIMENSIONS: Record<
+  Platform,
+  { width: number; height: number; label: string }
+> = {
+  instagram: { width: 1, height: 1, label: "1:1 Square" },
+  threads: { width: 4, height: 5, label: "4:5 Portrait" },
+  twitter: { width: 16, height: 9, label: "16:9 Landscape" },
+  linkedin: { width: 1.91, height: 1, label: "1.91:1 Landscape" },
+};
+
 const CAPTION_STYLES = [
-  { id: 'auto', label: 'Auto', description: 'Let AI decide the best style' },
-  { id: 'quote', label: 'Quote', description: 'Inspirational or thought-provoking quote' },
-  { id: 'personal', label: 'Personal', description: 'Authentic personal thought or reflection' },
-  { id: 'story', label: 'Story', description: 'Behind-the-scenes or storytelling' },
-  { id: 'question', label: 'Question', description: 'Engage audience with a question' },
-  { id: 'announcement', label: 'Announce', description: 'News or announcement style' },
+  { id: "auto", label: "Auto", description: "Let AI decide the best style" },
+  {
+    id: "quote",
+    label: "Quote",
+    description: "Inspirational or thought-provoking quote",
+  },
+  {
+    id: "personal",
+    label: "Personal",
+    description: "Authentic personal thought or reflection",
+  },
+  {
+    id: "story",
+    label: "Story",
+    description: "Behind-the-scenes or storytelling",
+  },
+  {
+    id: "question",
+    label: "Question",
+    description: "Engage audience with a question",
+  },
+  {
+    id: "announcement",
+    label: "Announce",
+    description: "News or announcement style",
+  },
 ] as const;
 
 export function PostComposer() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: project, isLoading: projectLoading } = useProject(projectId);
   const { data: allMedia, isLoading: mediaLoading } = useMedia(projectId);
 
@@ -48,7 +85,7 @@ export function PostComposer() {
     captionSuggestions,
     viralityScore,
     editedImages,
-    collages,
+    generatedImages,
     setCaption,
     addHashtag,
     removeHashtag,
@@ -58,7 +95,9 @@ export function PostComposer() {
     setCaptionSuggestions,
     setViralityScore,
     setEditedImage,
-    removeCollage,
+    removeGeneratedImage,
+    addGeneratedImage,
+    setHashtags,
   } = useComposerStore();
 
   const generateCaption = useGenerateCaption();
@@ -66,27 +105,141 @@ export function PostComposer() {
   const calculateViralityScore = useCalculateViralityScore();
 
   const [showMediaPicker, setShowMediaPicker] = useState(false);
-  const [hashtagInput, setHashtagInput] = useState('');
+  const [hashtagInput, setHashtagInput] = useState("");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [editingMedia, setEditingMedia] = useState<Media | null>(null);
-  const [captionStyle, setCaptionStyle] = useState<string>('auto');
-  const [imageContext, setImageContext] = useState('');
+  const [captionStyle, setCaptionStyle] = useState<string>("auto");
+  const [imageContext, setImageContext] = useState("");
+  const [previewPlatform, setPreviewPlatform] = useState<Platform>(
+    platforms[0] || "instagram",
+  );
+  const [activeTemplate, setActiveTemplate] = useState<Template | null>(null);
+  const [templateApplied, setTemplateApplied] = useState(false);
+  const [templatePromptValues, setTemplatePromptValues] = useState<
+    Record<number, string>
+  >({});
+  const [showTemplateRenderer, setShowTemplateRenderer] = useState(false);
+
+  // Update a template prompt value
+  const updatePromptValue = (index: number, value: string) => {
+    setTemplatePromptValues((prev) => ({ ...prev, [index]: value }));
+  };
+
+  // Generate caption from filled template prompts
+  const generateCaptionFromTemplate = () => {
+    if (!activeTemplate?.captionPrompts) return;
+
+    const filledPrompts = activeTemplate.captionPrompts
+      .map((_, i) => templatePromptValues[i] || "")
+      .filter((v) => v.trim() !== "");
+
+    if (filledPrompts.length === 0) return;
+
+    // Build caption based on template type
+    let generatedCaption = "";
+
+    if (activeTemplate.category === "quote") {
+      // Quote format: "Quote text" — Author
+      generatedCaption = `"${filledPrompts[0]}"`;
+      if (filledPrompts[1]) {
+        generatedCaption += `\n\n— ${filledPrompts[1]}`;
+      }
+    } else if (
+      activeTemplate.category === "tips" ||
+      activeTemplate.category === "carousel"
+    ) {
+      // Tips/carousel: Title + numbered points
+      if (filledPrompts[0]) {
+        generatedCaption = `${filledPrompts[0]}\n\n`;
+      }
+      filledPrompts.slice(1).forEach((tip, i) => {
+        generatedCaption += `${i + 1}. ${tip}\n`;
+      });
+    } else if (activeTemplate.category === "testimonial") {
+      // Testimonial: Review + name
+      generatedCaption = `"${filledPrompts[0]}"`;
+      if (filledPrompts[1]) {
+        generatedCaption += `\n\n— ${filledPrompts[1]}`;
+      }
+    } else {
+      // Default: join with line breaks
+      generatedCaption = filledPrompts.join("\n\n");
+    }
+
+    setCaption(generatedCaption.trim());
+  };
+
+  // Handle generated template image
+  const handleTemplateImageGenerated = (imageDataUrl: string) => {
+    addGeneratedImage(imageDataUrl, "template");
+    setShowTemplateRenderer(false);
+    // Also apply the caption
+    generateCaptionFromTemplate();
+  };
+
+  // Load template from URL query param
+  useEffect(() => {
+    const templateId = searchParams.get("template");
+    if (templateId && !templateApplied) {
+      const template = TEMPLATES.find((t) => t.id === templateId);
+      if (template) {
+        setActiveTemplate(template);
+
+        // Apply template settings
+        if (template.suggestedHashtags) {
+          setHashtags(template.suggestedHashtags);
+        }
+
+        // Set platforms from template
+        const currentPlatforms = useComposerStore.getState().platforms;
+        template.platforms.forEach((platform) => {
+          if (!currentPlatforms.includes(platform)) {
+            togglePlatform(platform);
+          }
+        });
+
+        // Set caption style based on template category
+        if (template.category === "quote") {
+          setCaptionStyle("quote");
+        } else if (
+          template.category === "story" ||
+          template.category === "behind-the-scenes"
+        ) {
+          setCaptionStyle("story");
+        } else if (
+          template.category === "tips" ||
+          template.category === "carousel"
+        ) {
+          setCaptionStyle("personal");
+        }
+
+        setTemplateApplied(true);
+      }
+    }
+  }, [searchParams, templateApplied, setHashtags, togglePlatform]);
+
+  // Clear template when navigating away
+  const handleClearTemplate = () => {
+    setActiveTemplate(null);
+    setSearchParams({});
+  };
 
   if (projectLoading || mediaLoading) return <PageLoader />;
 
-  const selectedMedia = allMedia?.filter((m) => selectedMediaIds.includes(m.id)) || [];
+  const selectedMedia =
+    allMedia?.filter((m) => selectedMediaIds.includes(m.id)) || [];
 
   const handleGenerateCaption = async () => {
     if (!project) return;
 
     const result = await generateCaption.mutateAsync({
-      mediaDescription: imageContext || 'Photo to share on social media',
+      mediaDescription: imageContext || "Photo to share on social media",
       businessContext: {
         industry: project.businessInfo.industry,
         targetAudience: project.businessInfo.targetAudience,
         tone: project.businessInfo.tone,
       },
-      platform: platforms[0] || 'instagram',
+      platform: platforms[0] || "instagram",
       captionStyle: captionStyle,
     });
 
@@ -99,7 +252,7 @@ export function PostComposer() {
     const result = await suggestHashtags.mutateAsync({
       caption,
       industry: project?.businessInfo.industry,
-      platform: platforms[0] || 'instagram',
+      platform: platforms[0] || "instagram",
     });
 
     result.hashtags.forEach((tag) => addHashtag(tag));
@@ -111,8 +264,8 @@ export function PostComposer() {
     const result = await calculateViralityScore.mutateAsync({
       caption,
       hashtags,
-      mediaType: selectedMedia[0]?.type || 'image',
-      platform: platforms[0] || 'instagram',
+      mediaType: selectedMedia[0]?.type || "image",
+      platform: platforms[0] || "instagram",
       businessContext: { industry: project?.businessInfo.industry },
     });
 
@@ -120,16 +273,16 @@ export function PostComposer() {
   };
 
   const handleAddHashtag = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       if (hashtagInput.trim()) {
         addHashtag(hashtagInput);
-        setHashtagInput('');
+        setHashtagInput("");
       }
     }
   };
 
-  const captionWithHashtags = `${caption}${hashtags.length > 0 ? '\n\n' + hashtags.map((h) => `#${h}`).join(' ') : ''}`;
+  const captionWithHashtags = `${caption}${hashtags.length > 0 ? "\n\n" + hashtags.map((h) => `#${h}`).join(" ") : ""}`;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -137,11 +290,92 @@ export function PostComposer() {
         <h1 className="text-2xl font-bold text-gray-900">Create Post</h1>
         <Button
           onClick={() => navigate(`/projects/${projectId}/export`)}
-          disabled={!caption || (selectedMedia.length === 0 && collages.length === 0)}
+          disabled={
+            !caption ||
+            (selectedMedia.length === 0 && generatedImages.length === 0)
+          }
         >
           Export
         </Button>
       </div>
+
+      {/* Template Banner */}
+      {activeTemplate && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-xl">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase text-primary-600 bg-primary-100 px-2 py-0.5 rounded">
+                Template
+              </span>
+              <h3 className="font-semibold text-gray-900">
+                {activeTemplate.name}
+              </h3>
+            </div>
+            <button
+              onClick={handleClearTemplate}
+              className="text-gray-400 hover:text-gray-600 p-1"
+              title="Remove template"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* Caption prompts input fields */}
+          {activeTemplate.captionPrompts &&
+            activeTemplate.captionPrompts.length > 0 && (
+              <div className="space-y-3">
+                {activeTemplate.captionPrompts.map((prompt, i) => (
+                  <div key={i}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {prompt.placeholder}
+                    </label>
+                    <input
+                      type="text"
+                      value={templatePromptValues[i] || ""}
+                      onChange={(e) => updatePromptValue(i, e.target.value)}
+                      placeholder={prompt.example}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                ))}
+
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="secondary"
+                    onClick={generateCaptionFromTemplate}
+                    disabled={Object.values(templatePromptValues).every(
+                      (v) => !v?.trim(),
+                    )}
+                    className="flex-1"
+                  >
+                    Caption Only
+                  </Button>
+                  <Button
+                    onClick={() => setShowTemplateRenderer(true)}
+                    disabled={Object.values(templatePromptValues).every(
+                      (v) => !v?.trim(),
+                    )}
+                    className="flex-1"
+                  >
+                    Generate Image
+                  </Button>
+                </div>
+              </div>
+            )}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left Column - Editor */}
@@ -150,26 +384,41 @@ export function PostComposer() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">Media</h2>
-              <Button variant="secondary" size="sm" onClick={() => setShowMediaPicker(true)}>
-                {selectedMedia.length > 0 || collages.length > 0 ? 'Add More' : 'Add Media'}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowMediaPicker(true)}
+              >
+                {selectedMedia.length > 0 || generatedImages.length > 0
+                  ? "Add More"
+                  : "Add Media"}
               </Button>
             </div>
 
-            {selectedMedia.length > 0 || collages.length > 0 ? (
+            {selectedMedia.length > 0 || generatedImages.length > 0 ? (
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {/* Show collages first */}
-                {collages.map((collageUrl, index) => (
-                  <div key={`collage-${index}`} className="relative flex-shrink-0">
+                {/* Show generated images first */}
+                {generatedImages.map((genImage, index) => (
+                  <div
+                    key={`generated-${index}`}
+                    className="relative flex-shrink-0"
+                  >
                     <img
-                      src={collageUrl}
-                      alt={`Collage ${index + 1}`}
-                      className="w-20 h-20 object-cover rounded-lg"
+                      src={genImage.dataUrl}
+                      alt={`${genImage.type === "template" ? "Template" : "Collage"} ${index + 1}`}
+                      className="w-20 h-20 object-cover object-center rounded-lg"
                     />
-                    <div className="absolute top-0 left-0 bg-primary-500 text-white text-[10px] px-1 rounded-tl-lg rounded-br">
-                      Collage
+                    <div
+                      className={`absolute top-0 left-0 text-white text-[10px] px-1 rounded-tl-lg rounded-br ${
+                        genImage.type === "template"
+                          ? "bg-purple-500"
+                          : "bg-primary-500"
+                      }`}
+                    >
+                      {genImage.type === "template" ? "Template" : "Collage"}
                     </div>
                     <button
-                      onClick={() => removeCollage(index)}
+                      onClick={() => removeGeneratedImage(index)}
                       className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs"
                     >
                       ×
@@ -180,11 +429,15 @@ export function PostComposer() {
                 {selectedMedia.map((media) => (
                   <div key={media.id} className="relative flex-shrink-0">
                     <img
-                      src={editedImages[media.id] || `/media/${media.thumbnailPath}`}
+                      src={
+                        editedImages[media.id]?.dataUrl ||
+                        `/media/${media.thumbnailPath}`
+                      }
                       alt=""
-                      className="w-20 h-20 object-cover rounded-lg"
+                      className="w-20 h-20 object-cover object-center rounded-lg"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `/media/${media.originalPath}`;
+                        (e.target as HTMLImageElement).src =
+                          `/media/${media.originalPath}`;
                       }}
                     />
                     <button
@@ -212,7 +465,9 @@ export function PostComposer() {
 
             {/* AI Assist Section */}
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <p className="text-sm font-medium text-gray-700 mb-3">AI Caption Assistant</p>
+              <p className="text-sm font-medium text-gray-700 mb-3">
+                AI Caption Assistant
+              </p>
 
               {/* Image Context */}
               <div className="mb-3">
@@ -230,7 +485,9 @@ export function PostComposer() {
 
               {/* Caption Style */}
               <div className="mb-3">
-                <label className="block text-xs text-gray-500 mb-1">Caption style</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Caption style
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {CAPTION_STYLES.map((style) => (
                     <button
@@ -238,8 +495,8 @@ export function PostComposer() {
                       onClick={() => setCaptionStyle(style.id)}
                       className={`px-3 py-1.5 text-xs rounded-full transition-colors ${
                         captionStyle === style.id
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-white border border-gray-200 text-gray-600 hover:border-primary-300'
+                          ? "bg-primary-500 text-white"
+                          : "bg-white border border-gray-200 text-gray-600 hover:border-primary-300"
                       }`}
                       title={style.description}
                     >
@@ -269,14 +526,18 @@ export function PostComposer() {
 
             {captionSuggestions.length > 0 && (
               <div className="mt-4 space-y-2">
-                <p className="text-sm text-gray-500">AI Suggestions (click to use):</p>
+                <p className="text-sm text-gray-500">
+                  AI Suggestions (click to use):
+                </p>
                 {captionSuggestions.map((suggestion, i) => (
                   <button
                     key={i}
                     onClick={() => setCaption(suggestion.text)}
                     className="block w-full text-left p-3 text-sm bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-transparent hover:border-primary-200"
                   >
-                    <span className="text-xs text-primary-500 font-medium uppercase">{suggestion.length}</span>
+                    <span className="text-xs text-primary-500 font-medium uppercase">
+                      {suggestion.length}
+                    </span>
                     <p className="mt-1">{suggestion.text}</p>
                   </button>
                 ))}
@@ -337,7 +598,9 @@ export function PostComposer() {
           <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Platforms</h2>
             <div className="flex flex-wrap gap-2">
-              {(['instagram', 'threads', 'twitter', 'linkedin'] as Platform[]).map((platform) => {
+              {(
+                ["instagram", "threads", "twitter", "linkedin"] as Platform[]
+              ).map((platform) => {
                 const isSelected = platforms.includes(platform);
                 const charCount = captionWithHashtags.length;
                 const limit = PLATFORM_LIMITS[platform];
@@ -349,14 +612,16 @@ export function PostComposer() {
                     onClick={() => togglePlatform(platform)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
                       isSelected
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
                     {PLATFORM_ICONS[platform]}
                     <span className="capitalize">{platform}</span>
                     {isSelected && (
-                      <span className={`text-xs ${isOver ? 'text-red-500' : 'text-gray-400'}`}>
+                      <span
+                        className={`text-xs ${isOver ? "text-red-500" : "text-gray-400"}`}
+                      >
                         {charCount}/{limit}
                       </span>
                     )}
@@ -400,13 +665,20 @@ export function PostComposer() {
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-600 mb-4">{viralityScore.reasoning}</p>
+                <p className="text-sm text-gray-600 mb-4">
+                  {viralityScore.reasoning}
+                </p>
 
                 <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Tips to improve:</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    Tips to improve:
+                  </p>
                   <ul className="space-y-1">
                     {viralityScore.tips.map((tip, i) => (
-                      <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
+                      <li
+                        key={i}
+                        className="text-sm text-gray-600 flex items-start gap-2"
+                      >
                         <span className="text-primary-500">•</span>
                         {tip}
                       </li>
@@ -423,21 +695,64 @@ export function PostComposer() {
 
           {/* Preview */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Preview</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900">Preview</h2>
+              {/* Platform Preview Tabs */}
+              {platforms.length > 0 && (
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  {platforms.map((platform) => {
+                    const dims = PLATFORM_DIMENSIONS[platform];
+                    return (
+                      <button
+                        key={platform}
+                        onClick={() => setPreviewPlatform(platform)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          previewPlatform === platform
+                            ? "bg-white text-gray-900 shadow-sm"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                        title={dims.label}
+                      >
+                        {PLATFORM_ICONS[platform]}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Aspect ratio label */}
+            {platforms.length > 0 && (
+              <p className="text-xs text-gray-500 mb-2 text-center">
+                {PLATFORM_DIMENSIONS[previewPlatform].label}
+              </p>
+            )}
 
             <div className="bg-gray-100 rounded-lg p-4">
               {(() => {
-                // Combine collages and selected media into preview items
+                // Combine generated images and selected media into preview items
                 const previewItems = [
-                  ...collages.map((url, i) => ({ type: 'collage' as const, url, index: i })),
-                  ...selectedMedia.map((m) => ({ type: 'media' as const, media: m })),
+                  ...generatedImages.map((genImg, i) => ({
+                    type: "generated" as const,
+                    genType: genImg.type,
+                    url: genImg.dataUrl,
+                    index: i,
+                  })),
+                  ...selectedMedia.map((m) => ({
+                    type: "media" as const,
+                    media: m,
+                  })),
                 ];
                 const totalItems = previewItems.length;
                 const currentItem = previewItems[currentImageIndex];
+                const dims = PLATFORM_DIMENSIONS[previewPlatform];
 
                 if (totalItems === 0) {
                   return (
-                    <div className="aspect-square bg-gray-200 rounded-lg flex items-center justify-center mb-4">
+                    <div
+                      className="bg-gray-200 rounded-lg flex items-center justify-center mb-4"
+                      style={{ aspectRatio: `${dims.width} / ${dims.height}` }}
+                    >
                       <p className="text-gray-400">No media selected</p>
                     </div>
                   );
@@ -446,40 +761,64 @@ export function PostComposer() {
                 return (
                   <>
                     {/* Main Image Display */}
-                    <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-4 group">
+                    <div
+                      className="relative bg-white rounded-lg overflow-hidden mb-4 group"
+                      style={{ aspectRatio: `${dims.width} / ${dims.height}` }}
+                    >
                       {currentItem && (
                         <>
                           <img
                             src={
-                              currentItem.type === 'collage'
+                              currentItem.type === "generated"
                                 ? currentItem.url
-                                : editedImages[currentItem.media.id] || `/media/${currentItem.media.originalPath}`
+                                : editedImages[currentItem.media.id]?.dataUrl ||
+                                  `/media/${currentItem.media.originalPath}`
                             }
                             alt=""
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-center"
                           />
 
-                          {/* Edit Button Overlay - only for media, not collages */}
-                          {currentItem.type === 'media' && (
+                          {/* Edit Button Overlay - only for media, not generated images */}
+                          {currentItem.type === "media" && (
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => setEditingMedia(currentItem.media)}
+                                onClick={() =>
+                                  setEditingMedia(currentItem.media)
+                                }
                                 className="bg-white/90 hover:bg-white"
                               >
-                                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                <svg
+                                  className="w-4 h-4 mr-1"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                  />
                                 </svg>
                                 Edit Image
                               </Button>
                             </div>
                           )}
 
-                          {/* Collage badge */}
-                          {currentItem.type === 'collage' && (
-                            <div className="absolute top-2 left-2 bg-primary-500 text-white text-xs px-2 py-1 rounded">
-                              Collage
+                          {/* Generated image badge */}
+                          {currentItem.type === "generated" && (
+                            <div
+                              className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded ${
+                                currentItem.genType === "template"
+                                  ? "bg-purple-500"
+                                  : "bg-primary-500"
+                              }`}
+                            >
+                              {currentItem.genType === "template"
+                                ? "Template"
+                                : "Collage"}
                             </div>
                           )}
 
@@ -487,19 +826,47 @@ export function PostComposer() {
                           {totalItems > 1 && (
                             <>
                               <button
-                                onClick={() => setCurrentImageIndex((prev) => (prev === 0 ? totalItems - 1 : prev - 1))}
+                                onClick={() =>
+                                  setCurrentImageIndex((prev) =>
+                                    prev === 0 ? totalItems - 1 : prev - 1,
+                                  )
+                                }
                                 className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center"
                               >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 19l-7-7 7-7"
+                                  />
                                 </svg>
                               </button>
                               <button
-                                onClick={() => setCurrentImageIndex((prev) => (prev === totalItems - 1 ? 0 : prev + 1))}
+                                onClick={() =>
+                                  setCurrentImageIndex((prev) =>
+                                    prev === totalItems - 1 ? 0 : prev + 1,
+                                  )
+                                }
                                 className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center"
                               >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5l7 7-7 7"
+                                  />
                                 </svg>
                               </button>
 
@@ -518,32 +885,52 @@ export function PostComposer() {
                       <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                         {previewItems.map((item, index) => (
                           <button
-                            key={item.type === 'collage' ? `collage-${item.index}` : item.media.id}
+                            key={
+                              item.type === "generated"
+                                ? `generated-${item.index}`
+                                : item.media.id
+                            }
                             onClick={() => setCurrentImageIndex(index)}
                             className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
-                              index === currentImageIndex ? 'border-primary-500' : 'border-transparent'
+                              index === currentImageIndex
+                                ? "border-primary-500"
+                                : "border-transparent"
                             }`}
                           >
                             <img
                               src={
-                                item.type === 'collage'
+                                item.type === "generated"
                                   ? item.url
-                                  : editedImages[item.media.id] || `/media/${item.media.thumbnailPath}`
+                                  : editedImages[item.media.id]?.dataUrl ||
+                                    `/media/${item.media.thumbnailPath}`
                               }
                               alt=""
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover object-center"
                               onError={(e) => {
-                                if (item.type === 'media') {
-                                  (e.target as HTMLImageElement).src = `/media/${item.media.originalPath}`;
+                                if (item.type === "media") {
+                                  (e.target as HTMLImageElement).src =
+                                    `/media/${item.media.originalPath}`;
                                 }
                               }}
                             />
-                            {item.type === 'collage' && (
-                              <div className="absolute top-0 left-0 bg-primary-500 text-white text-[8px] px-1 rounded-br">C</div>
+                            {item.type === "generated" && (
+                              <div
+                                className={`absolute top-0 left-0 text-white text-[8px] px-1 rounded-br ${
+                                  item.genType === "template"
+                                    ? "bg-purple-500"
+                                    : "bg-primary-500"
+                                }`}
+                              >
+                                {item.genType === "template" ? "T" : "C"}
+                              </div>
                             )}
-                            {item.type === 'media' && editedImages[item.media.id] && (
-                              <div className="absolute top-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full" title="Edited" />
-                            )}
+                            {item.type === "media" &&
+                              editedImages[item.media.id]?.dataUrl && (
+                                <div
+                                  className="absolute top-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full"
+                                  title="Edited"
+                                />
+                              )}
                           </button>
                         ))}
                       </div>
@@ -554,7 +941,9 @@ export function PostComposer() {
 
               <div className="text-sm whitespace-pre-wrap">
                 {captionWithHashtags || (
-                  <span className="text-gray-400">Your caption will appear here...</span>
+                  <span className="text-gray-400">
+                    Your caption will appear here...
+                  </span>
                 )}
               </div>
             </div>
@@ -584,22 +973,33 @@ export function PostComposer() {
                     }
                   }}
                   className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
-                    isSelected ? 'border-primary-500' : 'border-transparent'
+                    isSelected ? "border-primary-500" : "border-transparent"
                   }`}
                 >
                   <img
                     src={`/media/${media.thumbnailPath}`}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover object-center"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = `/media/${media.originalPath}`;
+                      (e.target as HTMLImageElement).src =
+                        `/media/${media.originalPath}`;
                     }}
                   />
                   {isSelected && (
                     <div className="absolute inset-0 bg-primary-500/20 flex items-center justify-center">
                       <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        <svg
+                          className="w-5 h-5 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
                       </div>
                     </div>
@@ -620,11 +1020,35 @@ export function PostComposer() {
         <ImageEditor
           media={editingMedia}
           brandKit={project?.brandKit}
-          onSave={(dataUrl, _edits) => {
-            setEditedImage(editingMedia.id, dataUrl);
+          editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
+          initialAdjustments={editedImages[editingMedia.id]?.adjustments}
+          initialTextOverlays={editedImages[editingMedia.id]?.textOverlays}
+          onSave={(dataUrl, edits) => {
+            setEditedImage(editingMedia.id, {
+              dataUrl,
+              adjustments: edits.adjustments,
+              textOverlays: edits.textOverlays,
+            });
             setEditingMedia(null);
           }}
           onClose={() => setEditingMedia(null)}
+        />
+      )}
+
+      {/* Template Renderer Modal */}
+      {showTemplateRenderer && activeTemplate && (
+        <TemplateRenderer
+          template={activeTemplate}
+          promptValues={templatePromptValues}
+          availableMedia={(allMedia || []).map((m) => ({
+            id: m.id,
+            url: editedImages[m.id]?.dataUrl || `/media/${m.originalPath}`,
+            thumbnailUrl:
+              editedImages[m.id]?.dataUrl || `/media/${m.thumbnailPath}`,
+          }))}
+          brandKit={project?.brandKit}
+          onGenerate={handleTemplateImageGenerated}
+          onClose={() => setShowTemplateRenderer(false)}
         />
       )}
     </div>

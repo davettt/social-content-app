@@ -1,11 +1,11 @@
-import express from 'express';
-import path from 'path';
-import fs from 'fs/promises';
-import archiver from 'archiver';
-import sharp from 'sharp';
-import { v4 as uuidv4 } from 'uuid';
-import { getProjectDir, readJsonFile, PROJECTS_DIR } from '../utils/storage.js';
-import { NotFoundError, ValidationError } from '../middleware/errorHandler.js';
+import express from "express";
+import path from "path";
+import fs from "fs/promises";
+import archiver from "archiver";
+import sharp from "sharp";
+import { v4 as uuidv4 } from "uuid";
+import { getProjectDir, readJsonFile, PROJECTS_DIR } from "../utils/storage.js";
+import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
 
 const router = express.Router();
 
@@ -15,28 +15,28 @@ const pendingExports = new Map();
 // Platform-specific image dimensions
 const PLATFORM_SIZES = {
   instagram: {
-    name: 'Instagram',
+    name: "Instagram",
     width: 1080,
     height: 1080,
-    fit: 'cover', // Square format - crops to fill
+    fit: "cover", // Square format - crops to fill
   },
   threads: {
-    name: 'Threads',
+    name: "Threads",
     width: 1080,
     height: 1350,
-    fit: 'cover', // Portrait format like Instagram stories
+    fit: "cover", // Portrait format like Instagram stories
   },
   twitter: {
-    name: 'Twitter',
+    name: "Twitter",
     width: 1200,
     height: 675,
-    fit: 'cover', // Landscape format
+    fit: "cover", // Landscape format
   },
   linkedin: {
-    name: 'LinkedIn',
+    name: "LinkedIn",
     width: 1200,
     height: 627,
-    fit: 'cover', // Landscape format
+    fit: "cover", // Landscape format
   },
 };
 
@@ -44,11 +44,11 @@ const PLATFORM_SIZES = {
 async function getImageBuffer(media, editedImages) {
   const editedDataUrl = editedImages?.[media.id];
 
-  if (editedDataUrl && editedDataUrl.startsWith('data:')) {
+  if (editedDataUrl && editedDataUrl.startsWith("data:")) {
     // Parse data URL: data:image/png;base64,<base64data>
     const matches = editedDataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (matches) {
-      return Buffer.from(matches[2], 'base64');
+      return Buffer.from(matches[2], "base64");
     }
   }
 
@@ -66,8 +66,8 @@ async function resizeForPlatform(inputBuffer, platform) {
     return await sharp(inputBuffer)
       .resize(config.width, config.height, {
         fit: config.fit,
-        position: 'center',
-        kernel: 'lanczos3',
+        position: "center",
+        kernel: "lanczos3",
       })
       .png({
         compressionLevel: 1, // Minimal compression, maximum quality
@@ -81,29 +81,39 @@ async function resizeForPlatform(inputBuffer, platform) {
 }
 
 // POST /api/export/prepare - Prepare export package
-router.post('/prepare', async (req, res, next) => {
+router.post("/prepare", async (req, res, next) => {
   try {
-    const { projectId, platforms, caption, mediaIds, editedImages, collages } = req.body;
+    const { projectId, platforms, caption, mediaIds, editedImages, collages } =
+      req.body;
 
     if (!projectId) {
-      throw new ValidationError('Project ID is required');
+      throw new ValidationError("Project ID is required");
     }
 
     const exportId = uuidv4();
     const projectDir = await getProjectDir(projectId);
-    const exportsDir = path.join(projectDir, 'exports', exportId);
+    const exportsDir = path.join(projectDir, "exports", exportId);
     await fs.mkdir(exportsDir, { recursive: true });
 
-    const selectedPlatforms = platforms || ['instagram', 'threads', 'twitter', 'linkedin'];
+    const selectedPlatforms = platforms || [
+      "instagram",
+      "threads",
+      "twitter",
+      "linkedin",
+    ];
 
     // Get media info if mediaIds provided
     let mediaFiles = [];
     if (mediaIds && mediaIds.length > 0) {
       try {
-        const mediaIndex = await readJsonFile(path.join(projectDir, 'media', 'index.json'));
-        mediaFiles = (mediaIndex.media || []).filter(m => mediaIds.includes(m.id));
+        const mediaIndex = await readJsonFile(
+          path.join(projectDir, "media", "index.json"),
+        );
+        mediaFiles = (mediaIndex.media || []).filter((m) =>
+          mediaIds.includes(m.id),
+        );
       } catch (e) {
-        console.warn('Could not read media/index.json:', e.message);
+        console.warn("Could not read media/index.json:", e.message);
       }
     }
 
@@ -120,13 +130,15 @@ router.post('/prepare', async (req, res, next) => {
         const media = mediaFiles[i];
 
         // Skip videos for now (Sharp doesn't handle video)
-        if (media.type === 'video') {
+        if (media.type === "video") {
           // Just copy video files as-is
           try {
             const sourcePath = path.join(PROJECTS_DIR, media.originalPath);
             const destPath = path.join(platformDir, media.filename);
             await fs.copyFile(sourcePath, destPath);
-            console.log(`Copied video ${media.filename} to ${platformConfig.name}`);
+            console.log(
+              `Copied video ${media.filename} to ${platformConfig.name}`,
+            );
           } catch (e) {
             console.warn(`Could not copy video ${media.filename}:`, e.message);
           }
@@ -141,14 +153,19 @@ router.post('/prepare', async (req, res, next) => {
           const resizedBuffer = await resizeForPlatform(inputBuffer, platform);
 
           // Save with platform-specific filename
-          const baseName = media.filename.replace(/\.[^.]+$/, '');
+          const baseName = media.filename.replace(/\.[^.]+$/, "");
           const destFilename = `${baseName}_${i + 1}.png`;
           const destPath = path.join(platformDir, destFilename);
 
           await fs.writeFile(destPath, resizedBuffer);
-          console.log(`Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`);
+          console.log(
+            `Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`,
+          );
         } catch (e) {
-          console.warn(`Could not process ${media.filename} for ${platform}:`, e.message);
+          console.warn(
+            `Could not process ${media.filename} for ${platform}:`,
+            e.message,
+          );
         }
       }
 
@@ -161,27 +178,39 @@ router.post('/prepare', async (req, res, next) => {
             const matches = collageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
             if (matches) {
               const base64Data = matches[2];
-              const inputBuffer = Buffer.from(base64Data, 'base64');
+              const inputBuffer = Buffer.from(base64Data, "base64");
 
               // Resize for this platform
-              const resizedBuffer = await resizeForPlatform(inputBuffer, platform);
+              const resizedBuffer = await resizeForPlatform(
+                inputBuffer,
+                platform,
+              );
 
               // Save with collage filename
               const destFilename = `collage_${i + 1}.png`;
               const destPath = path.join(platformDir, destFilename);
 
               await fs.writeFile(destPath, resizedBuffer);
-              console.log(`Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`);
+              console.log(
+                `Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`,
+              );
             }
           } catch (e) {
-            console.warn(`Could not process collage ${i + 1} for ${platform}:`, e.message);
+            console.warn(
+              `Could not process collage ${i + 1} for ${platform}:`,
+              e.message,
+            );
           }
         }
       }
 
       // Save caption to each platform folder
       if (caption) {
-        await fs.writeFile(path.join(platformDir, 'caption.txt'), caption, 'utf-8');
+        await fs.writeFile(
+          path.join(platformDir, "caption.txt"),
+          caption,
+          "utf-8",
+        );
       }
     }
 
@@ -192,14 +221,14 @@ router.post('/prepare', async (req, res, next) => {
       platforms: selectedPlatforms,
       caption,
       mediaFiles,
-      status: 'ready',
+      status: "ready",
       createdAt: new Date().toISOString(),
       exportsDir,
     });
 
     const exportInfo = {
       id: exportId,
-      status: 'ready',
+      status: "ready",
       platforms: selectedPlatforms,
     };
 
@@ -210,7 +239,7 @@ router.post('/prepare', async (req, res, next) => {
 });
 
 // GET /api/export/:id/download - Download export as ZIP
-router.get('/:id/download', async (req, res, next) => {
+router.get("/:id/download", async (req, res, next) => {
   try {
     const { id } = req.params;
     const exportInfo = pendingExports.get(id);
@@ -222,10 +251,13 @@ router.get('/:id/download', async (req, res, next) => {
     const exportsDir = exportInfo.exportsDir;
 
     // Create ZIP file
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=social-export-${Date.now()}.zip`);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=social-export-${Date.now()}.zip`,
+    );
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = archiver("zip", { zlib: { level: 9 } });
     archive.pipe(res);
 
     // Add all platform folders and their contents
@@ -242,14 +274,18 @@ router.get('/:id/download', async (req, res, next) => {
         }
       }
     } catch (e) {
-      console.warn('Could not read exports dir:', e.message);
+      console.warn("Could not read exports dir:", e.message);
     }
 
     // Build platform info for README
-    const platformDetails = exportInfo.platforms.map(p => {
-      const config = PLATFORM_SIZES[p];
-      return config ? `  - ${config.name}/: ${config.width}x${config.height}px images` : `  - ${p}/`;
-    }).join('\n');
+    const platformDetails = exportInfo.platforms
+      .map((p) => {
+        const config = PLATFORM_SIZES[p];
+        return config
+          ? `  - ${config.name}/: ${config.width}x${config.height}px images`
+          : `  - ${p}/`;
+      })
+      .join("\n");
 
     // Add a README with instructions
     const mediaCount = exportInfo.mediaFiles?.length || 0;
@@ -283,7 +319,7 @@ How to post:
 
 Tip: Each platform folder has correctly sized images - use the right folder for best results!
 `,
-      { name: 'README.txt' }
+      { name: "README.txt" },
     );
 
     await archive.finalize();
@@ -293,7 +329,7 @@ Tip: Each platform folder has correctly sized images - use the right folder for 
 });
 
 // GET /api/export/:id/status - Get export status
-router.get('/:id/status', async (req, res, next) => {
+router.get("/:id/status", async (req, res, next) => {
   try {
     const { id } = req.params;
     const exportInfo = pendingExports.get(id);

@@ -1,17 +1,21 @@
-import express from 'express';
-import { analyzeWebsite } from '../services/websiteAnalyzer.js';
-import { generateCaption, suggestHashtags, calculateViralityScore } from '../services/aiService.js';
-import { ValidationError } from '../middleware/errorHandler.js';
+import express from "express";
+import { analyzeWebsite } from "../services/websiteAnalyzer.js";
+import {
+  generateCaption,
+  suggestHashtags,
+  calculateViralityScore,
+} from "../services/aiService.js";
+import { ValidationError } from "../middleware/errorHandler.js";
 
 const router = express.Router();
 
 // POST /api/ai/analyze-website - Analyze website pages
-router.post('/analyze-website', async (req, res, next) => {
+router.post("/analyze-website", async (req, res, next) => {
   try {
     const { url, pages } = req.body;
 
-    if (!url || typeof url !== 'string') {
-      throw new ValidationError('Website URL is required');
+    if (!url || typeof url !== "string") {
+      throw new ValidationError("Website URL is required");
     }
 
     const result = await analyzeWebsite(url, pages || []);
@@ -22,12 +26,18 @@ router.post('/analyze-website', async (req, res, next) => {
 });
 
 // POST /api/ai/generate-caption - Generate caption suggestions
-router.post('/generate-caption', async (req, res, next) => {
+router.post("/generate-caption", async (req, res, next) => {
   try {
-    const { mediaDescription, businessContext, platform, draftCaption, captionStyle } = req.body;
+    const {
+      mediaDescription,
+      businessContext,
+      platform,
+      draftCaption,
+      captionStyle,
+    } = req.body;
 
     if (!mediaDescription) {
-      throw new ValidationError('Media description is required');
+      throw new ValidationError("Media description is required");
     }
 
     const result = await generateCaption({
@@ -45,12 +55,12 @@ router.post('/generate-caption', async (req, res, next) => {
 });
 
 // POST /api/ai/suggest-hashtags - Get hashtag suggestions
-router.post('/suggest-hashtags', async (req, res, next) => {
+router.post("/suggest-hashtags", async (req, res, next) => {
   try {
     const { caption, industry, platform } = req.body;
 
     if (!caption) {
-      throw new ValidationError('Caption is required');
+      throw new ValidationError("Caption is required");
     }
 
     const result = await suggestHashtags({ caption, industry, platform });
@@ -61,12 +71,13 @@ router.post('/suggest-hashtags', async (req, res, next) => {
 });
 
 // POST /api/ai/virality-score - Calculate virality score
-router.post('/virality-score', async (req, res, next) => {
+router.post("/virality-score", async (req, res, next) => {
   try {
-    const { caption, hashtags, mediaType, platform, businessContext } = req.body;
+    const { caption, hashtags, mediaType, platform, businessContext } =
+      req.body;
 
     if (!caption) {
-      throw new ValidationError('Caption is required');
+      throw new ValidationError("Caption is required");
     }
 
     const result = await calculateViralityScore({

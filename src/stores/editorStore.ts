@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import type { Media, MediaEdits, TextOverlay } from '../types';
+import { create } from "zustand";
+import type { Media, MediaEdits, TextOverlay } from "../types";
 
 interface EditorState {
   selectedMedia: Media | null;
@@ -54,7 +54,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       edits: {
         ...state.edits,
         textOverlays: (state.edits.textOverlays || []).map((t) =>
-          t.id === id ? { ...t, ...updates } : t
+          t.id === id ? { ...t, ...updates } : t,
         ),
       },
     })),
@@ -63,7 +63,9 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => ({
       edits: {
         ...state.edits,
-        textOverlays: (state.edits.textOverlays || []).filter((t) => t.id !== id),
+        textOverlays: (state.edits.textOverlays || []).filter(
+          (t) => t.id !== id,
+        ),
       },
       activeTextOverlay:
         state.activeTextOverlay === id ? null : state.activeTextOverlay,
