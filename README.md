@@ -96,6 +96,11 @@ social-content-app/
 | `PORT` | No | Server port (default: 3001) |
 | `NODE_ENV` | No | Environment (development/production) |
 
+## Known Limitations
+
+- **Video editing**: The video editor UI allows previewing trim, speed, and audio changes, but edits are not yet persisted or applied to exports. Full video processing with FFmpeg is planned for a future release.
+- **Media persistence**: Edited images are stored in-memory during the session but not saved as separate files.
+
 ## Personal Project Notice
 
 This is a personal project maintained for my own use. You're welcome to:

@@ -13,6 +13,7 @@ import { Textarea } from "../common/Input";
 import { Modal } from "../common/Modal";
 import { PageLoader } from "../common/LoadingSpinner";
 import { ImageEditor } from "../editor/ImageEditor";
+import { VideoEditor } from "../editor/VideoEditor";
 import { TEMPLATES } from "../templates/templateData";
 import { TemplateRenderer } from "../templates/TemplateRenderer";
 import type { Platform, Media, Template } from "../../types";
@@ -768,16 +769,27 @@ export function PostComposer() {
                     >
                       {currentItem && (
                         <>
-                          <img
-                            src={
-                              currentItem.type === "generated"
-                                ? currentItem.url
-                                : editedImages[currentItem.media.id]?.dataUrl ||
-                                  `/media/${currentItem.media.originalPath}`
-                            }
-                            alt=""
-                            className="w-full h-full object-cover object-center"
-                          />
+                          {currentItem.type === "media" &&
+                          currentItem.media.type === "video" ? (
+                            <video
+                              src={`/media/${currentItem.media.originalPath}`}
+                              className="w-full h-full object-cover object-center"
+                              controls
+                              muted
+                            />
+                          ) : (
+                            <img
+                              src={
+                                currentItem.type === "generated"
+                                  ? currentItem.url
+                                  : editedImages[currentItem.media.id]
+                                      ?.dataUrl ||
+                                    `/media/${currentItem.media.originalPath}`
+                              }
+                              alt=""
+                              className="w-full h-full object-cover object-center"
+                            />
+                          )}
 
                           {/* Edit Button Overlay - only for media, not generated images */}
                           {currentItem.type === "media" && (
@@ -803,7 +815,10 @@ export function PostComposer() {
                                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                                   />
                                 </svg>
-                                Edit Image
+                                Edit{" "}
+                                {currentItem.media.type === "video"
+                                  ? "Video"
+                                  : "Image"}
                               </Button>
                               {editedImages[currentItem.media.id]?.dataUrl && (
                                 <Button
@@ -1041,25 +1056,31 @@ export function PostComposer() {
         </div>
       </Modal>
 
-      {/* Image Editor Modal */}
-      {editingMedia && (
-        <ImageEditor
-          media={editingMedia}
-          brandKit={project?.brandKit}
-          editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
-          initialAdjustments={editedImages[editingMedia.id]?.adjustments}
-          initialTextOverlays={editedImages[editingMedia.id]?.textOverlays}
-          onSave={(dataUrl, edits) => {
-            setEditedImage(editingMedia.id, {
-              dataUrl,
-              adjustments: edits.adjustments,
-              textOverlays: edits.textOverlays,
-            });
-            setEditingMedia(null);
-          }}
-          onClose={() => setEditingMedia(null)}
-        />
-      )}
+      {/* Image/Video Editor Modal */}
+      {editingMedia &&
+        (editingMedia.type === "video" ? (
+          <VideoEditor
+            media={editingMedia}
+            onClose={() => setEditingMedia(null)}
+          />
+        ) : (
+          <ImageEditor
+            media={editingMedia}
+            brandKit={project?.brandKit}
+            editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
+            initialAdjustments={editedImages[editingMedia.id]?.adjustments}
+            initialTextOverlays={editedImages[editingMedia.id]?.textOverlays}
+            onSave={(dataUrl, edits) => {
+              setEditedImage(editingMedia.id, {
+                dataUrl,
+                adjustments: edits.adjustments,
+                textOverlays: edits.textOverlays,
+              });
+              setEditingMedia(null);
+            }}
+            onClose={() => setEditingMedia(null)}
+          />
+        ))}
 
       {/* Template Renderer Modal */}
       {showTemplateRenderer && activeTemplate && (

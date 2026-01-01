@@ -198,10 +198,6 @@ export function MediaLibrary() {
       {editingVideo && (
         <VideoEditor
           media={editingVideo}
-          onSave={() => {
-            // For now, just close - in future could save edited version
-            setEditingVideo(null);
-          }}
           onClose={() => setEditingVideo(null)}
         />
       )}
@@ -312,7 +308,7 @@ function MediaCard({
         </div>
       )}
 
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
 
       <button
         onClick={(e) => {

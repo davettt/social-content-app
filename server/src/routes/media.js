@@ -9,7 +9,10 @@ import {
   readJsonFile,
   writeJsonFile,
 } from "../utils/storage.js";
-import { extractMetadata } from "../services/metadataExtractor.js";
+import {
+  extractMetadata,
+  getVideoThumbnail,
+} from "../services/metadataExtractor.js";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
 
 const router = express.Router();
@@ -74,14 +77,11 @@ async function writeMediaIndex(projectId, data) {
 }
 
 // Generate thumbnail for image
-async function generateThumbnail(sourcePath, destPath, type) {
-  if (type === "image") {
-    await sharp(sourcePath)
-      .resize(400, 400, { fit: "cover", position: "center" })
-      .jpeg({ quality: 80 })
-      .toFile(destPath);
-  }
-  // Video thumbnails will be handled by FFmpeg in the video service
+async function generateThumbnail(sourcePath, destPath) {
+  await sharp(sourcePath)
+    .resize(400, 400, { fit: "cover", position: "center" })
+    .jpeg({ quality: 80 })
+    .toFile(destPath);
 }
 
 // GET /api/media/:projectId - List all media for a project
@@ -154,7 +154,10 @@ router.post(
           thumbnailFilename,
         );
 
-        if (!isVideo) {
+        if (isVideo) {
+          // Generate video thumbnail using ffmpeg
+          await getVideoThumbnail(file.path, thumbnailPath);
+        } else {
           await generateThumbnail(file.path, thumbnailPath, type);
         }
 

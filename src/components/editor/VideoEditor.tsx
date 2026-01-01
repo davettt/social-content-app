@@ -4,7 +4,6 @@ import type { Media } from "../../types";
 
 interface VideoEditorProps {
   media: Media;
-  onSave: (edits: VideoEdits) => void;
   onClose: () => void;
 }
 
@@ -23,7 +22,7 @@ const SPEED_OPTIONS = [
   { label: "2x", value: 2 },
 ];
 
-export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
+export function VideoEditor({ media, onClose }: VideoEditorProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -105,38 +104,40 @@ export function VideoEditor({ media, onSave, onClose }: VideoEditorProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleSave = () => {
-    onSave(edits);
-  };
-
   const trimDuration = edits.trimEnd - edits.trimStart;
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 bg-gray-800 border-b border-gray-700">
-        <h2 className="text-lg font-semibold text-white">Edit Video</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-white">Edit Video</h2>
+          <p className="text-xs text-amber-400">
+            Preview only — video edits not yet saved
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            Close
           </Button>
-          <Button onClick={handleSave}>Save</Button>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
-        {/* Video Preview */}
-        <div className="flex-1 flex items-center justify-center p-8 bg-black">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Video Preview - constrained height to leave room for controls */}
+        <div className="flex-1 flex items-center justify-center p-4 bg-black min-h-0">
           <video
             ref={videoRef}
             src={`/media/${media.originalPath}`}
-            className="max-h-full max-w-full rounded-lg"
+            className="max-h-full max-w-full rounded-lg cursor-pointer"
+            style={{ maxHeight: "calc(100vh - 400px)" }}
             onClick={togglePlay}
+            preload="metadata"
           />
         </div>
 
-        {/* Controls */}
-        <div className="bg-gray-800 border-t border-gray-700 p-6">
+        {/* Controls - scrollable if needed */}
+        <div className="bg-gray-800 border-t border-gray-700 p-6 overflow-y-auto max-h-[350px]">
           {/* Playback Controls */}
           <div className="flex items-center justify-center gap-4 mb-6">
             <button

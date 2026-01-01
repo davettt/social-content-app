@@ -1,6 +1,10 @@
 import fs from "fs/promises";
+import { exec } from "child_process";
+import { promisify } from "util";
 import ExifParser from "exif-parser";
 import sharp from "sharp";
+
+const execAsync = promisify(exec);
 
 export async function extractMetadata(filePath, type) {
   const metadata = {
@@ -57,11 +61,33 @@ export async function extractMetadata(filePath, type) {
         console.warn("Could not extract EXIF data:", exifError.message);
       }
     } else if (type === "video") {
-      // Video metadata extraction would use FFprobe
-      // For now, we'll set basic defaults
-      metadata.width = 1920;
-      metadata.height = 1080;
-      metadata.duration = 0;
+      // Extract video metadata using ffprobe
+      try {
+        const { stdout } = await execAsync(
+          `ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`,
+        );
+        const probeData = JSON.parse(stdout);
+
+        // Find video stream
+        const videoStream = probeData.streams?.find(
+          (s) => s.codec_type === "video",
+        );
+        if (videoStream) {
+          metadata.width = videoStream.width || 0;
+          metadata.height = videoStream.height || 0;
+        }
+
+        // Get duration from format
+        if (probeData.format?.duration) {
+          metadata.duration = parseFloat(probeData.format.duration);
+        }
+      } catch (ffprobeError) {
+        console.warn("Could not extract video metadata:", ffprobeError.message);
+        // Fallback defaults
+        metadata.width = 1920;
+        metadata.height = 1080;
+        metadata.duration = 0;
+      }
     }
   } catch (error) {
     console.error("Error extracting metadata:", error);
@@ -71,13 +97,27 @@ export async function extractMetadata(filePath, type) {
 }
 
 export async function getVideoDuration(filePath) {
-  // This would use FFprobe in a full implementation
-  // For now, return 0
-  return 0;
+  try {
+    const { stdout } = await execAsync(
+      `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${filePath}"`,
+    );
+    return parseFloat(stdout.trim()) || 0;
+  } catch (error) {
+    console.warn("Could not get video duration:", error.message);
+    return 0;
+  }
 }
 
 export async function getVideoThumbnail(inputPath, outputPath, timestamp = 1) {
-  // This would use FFmpeg to extract a frame
-  // Will be implemented in Phase 5
-  return null;
+  try {
+    // Extract a frame at the specified timestamp (or 1 second by default)
+    // Use -vf scale to ensure reasonable thumbnail size
+    await execAsync(
+      `ffmpeg -y -ss ${timestamp} -i "${inputPath}" -vframes 1 -vf "scale=400:400:force_original_aspect_ratio=increase,crop=400:400" -q:v 2 "${outputPath}"`,
+    );
+    return outputPath;
+  } catch (error) {
+    console.warn("Could not generate video thumbnail:", error.message);
+    return null;
+  }
 }
