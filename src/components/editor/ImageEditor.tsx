@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas, FabricImage, IText, filters, Shadow } from "fabric";
+import { Canvas, FabricImage, IText, filters, Shadow, Line } from "fabric";
 import { Button } from "../common/Button";
+import {
+  AlignmentPicker,
+  getPositionCoordinates,
+} from "../common/AlignmentPicker";
 import { v4 as uuidv4 } from "uuid";
 import type {
   Media,
   TextOverlay,
   ImageAdjustments,
   BrandKit,
+  TextPosition,
 } from "../../types";
+import { SAFE_ZONE_MARGIN } from "../../types/post";
 
 interface ImageEditorProps {
   media: Media;
@@ -85,6 +91,8 @@ export function ImageEditor({
     editedImageUrl ? [] : initialTextOverlays || [],
   );
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+  const [showSafeZone, setShowSafeZone] = useState(true);
+  const safeZoneLinesRef = useRef<Line[]>([]);
 
   // Image positioning state
   const [imageZoom, setImageZoom] = useState(1);
@@ -309,6 +317,49 @@ export function ImageEditor({
     canvas.renderAll();
   }, [imageZoom, baseScale, constrainImagePosition]);
 
+  // Draw/update safe zone guides
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    // Remove existing safe zone lines
+    safeZoneLinesRef.current.forEach((line) => canvas.remove(line));
+    safeZoneLinesRef.current = [];
+
+    if (!showSafeZone) {
+      canvas.renderAll();
+      return;
+    }
+
+    const width = canvas.width!;
+    const height = canvas.height!;
+    const margin = SAFE_ZONE_MARGIN;
+    const left = width * margin;
+    const top = height * margin;
+    const right = width * (1 - margin);
+    const bottom = height * (1 - margin);
+
+    const lineConfig = {
+      stroke: "rgba(255, 255, 255, 0.3)",
+      strokeWidth: 1,
+      strokeDashArray: [5, 5],
+      selectable: false,
+      evented: false,
+      excludeFromExport: true,
+    };
+
+    const lines = [
+      new Line([left, top, right, top], lineConfig), // top
+      new Line([left, bottom, right, bottom], lineConfig), // bottom
+      new Line([left, top, left, bottom], lineConfig), // left
+      new Line([right, top, right, bottom], lineConfig), // right
+    ];
+
+    lines.forEach((line) => canvas.add(line));
+    safeZoneLinesRef.current = lines;
+    canvas.renderAll();
+  }, [showSafeZone]);
+
   // Reset image position
   const resetImagePosition = useCallback(() => {
     const img = imageRef.current;
@@ -372,20 +423,38 @@ export function ImageEditor({
   };
 
   // Add text overlay
-  const addTextOverlay = (initialText: string = "Your text here") => {
+  const addTextOverlay = (
+    initialText: string = "Your text here",
+    position: TextPosition = "middle-center",
+  ) => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
     const id = uuidv4();
+    const { x, y, textAlign } = getPositionCoordinates(
+      position,
+      canvas.width!,
+      canvas.height!,
+      SAFE_ZONE_MARGIN,
+    );
+
+    // Determine origin based on alignment
+    const originX = textAlign;
+    const originY = position.startsWith("top")
+      ? "top"
+      : position.startsWith("bottom")
+        ? "bottom"
+        : "center";
+
     const text = new IText(initialText, {
-      left: canvas.width! / 2,
-      top: canvas.height! / 2,
-      originX: "center",
-      originY: "center",
+      left: x,
+      top: y,
+      originX,
+      originY,
       fontFamily: brandKit?.fonts?.heading || "Inter",
       fontSize: 32,
       fill: brandKit?.primaryColor || "#ffffff",
-      textAlign: "center",
+      textAlign,
       shadow: new Shadow({
         color: "rgba(0, 0, 0, 0.5)",
         blur: 4,
@@ -403,19 +472,59 @@ export function ImageEditor({
     const overlay: TextOverlay = {
       id,
       text: initialText,
-      x: canvas.width! / 2,
-      y: canvas.height! / 2,
+      x,
+      y,
       fontSize: 32,
       fontFamily: brandKit?.fonts?.heading || "Inter",
       color: brandKit?.primaryColor || "#ffffff",
       opacity: 1,
       rotation: 0,
-      textAlign: "center",
+      textAlign,
       shadow: true,
+      position,
     };
 
     setTextOverlays((prev) => [...prev, overlay]);
     setSelectedTextId(id);
+  };
+
+  // Move text to a specific position
+  const moveTextToPosition = (position: TextPosition) => {
+    const canvas = fabricCanvasRef.current;
+    const activeObject = canvas?.getActiveObject();
+
+    if (!canvas || !activeObject || !(activeObject instanceof IText)) return;
+
+    const { x, y, textAlign } = getPositionCoordinates(
+      position,
+      canvas.width!,
+      canvas.height!,
+      SAFE_ZONE_MARGIN,
+    );
+
+    // Determine origin based on alignment
+    const originX = textAlign;
+    const originY = position.startsWith("top")
+      ? "top"
+      : position.startsWith("bottom")
+        ? "bottom"
+        : "center";
+
+    activeObject.set({
+      left: x,
+      top: y,
+      originX,
+      originY,
+      textAlign,
+    });
+    canvas.renderAll();
+
+    // Update state
+    setTextOverlays((prev) =>
+      prev.map((t) =>
+        t.id === selectedTextId ? { ...t, x, y, textAlign, position } : t,
+      ),
+    );
   };
 
   // Format date for display (preserving the original date without timezone shift)
@@ -491,10 +600,11 @@ export function ImageEditor({
       }
       canvas?.renderAll();
 
-      // Update state
+      // Update state - map Fabric.js property names to TextOverlay property names
+      const stateProperty = property === "fill" ? "color" : property;
       setTextOverlays((prev) =>
         prev.map((t) =>
-          t.id === selectedTextId ? { ...t, [property]: value } : t,
+          t.id === selectedTextId ? { ...t, [stateProperty]: value } : t,
         ),
       );
     }
@@ -520,6 +630,9 @@ export function ImageEditor({
 
     // Deselect all to remove selection handles from export
     canvas.discardActiveObject();
+
+    // Temporarily hide safe zone lines for export
+    safeZoneLinesRef.current.forEach((line) => line.set("visible", false));
     canvas.renderAll();
 
     const dataUrl = canvas.toDataURL({
@@ -527,6 +640,10 @@ export function ImageEditor({
       quality: 1,
       multiplier: 2,
     });
+
+    // Restore safe zone lines visibility
+    safeZoneLinesRef.current.forEach((line) => line.set("visible", true));
+    canvas.renderAll();
 
     onSave(dataUrl, { adjustments, textOverlays });
   };
@@ -718,6 +835,22 @@ export function ImageEditor({
                   + Add Text
                 </Button>
 
+                {/* Safe Zone Toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showSafeZone}
+                      onChange={(e) => setShowSafeZone(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-300">
+                      Show Safe Zone
+                    </span>
+                  </label>
+                  <span className="text-xs text-gray-500">5% margin</span>
+                </div>
+
                 {/* Media Metadata Section */}
                 {(media.metadata.dateTaken ||
                   media.metadata.location ||
@@ -776,6 +909,22 @@ export function ImageEditor({
 
                 {selectedText && (
                   <div className="space-y-4 pt-4 border-t border-gray-700">
+                    {/* Position Picker */}
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-2">
+                        Position
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <AlignmentPicker
+                          value={selectedText.position || "middle-center"}
+                          onChange={moveTextToPosition}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Or drag text freely on canvas
+                        </p>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm text-gray-300 mb-1">
                         Font
