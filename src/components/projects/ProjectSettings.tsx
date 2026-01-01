@@ -29,6 +29,38 @@ export function ProjectSettings() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
+  const [coolorsUrl, setCoolorsUrl] = useState("");
+  const [coolorsError, setCoolorsError] = useState("");
+
+  // Parse Coolors.co URL to extract hex colors
+  const parseCoolorsUrl = (url: string): string[] => {
+    // Match patterns like:
+    // https://coolors.co/palette/edafb8-f7e1d7-dedbd2-b0c4b1-4a5759
+    // https://coolors.co/edafb8-f7e1d7-dedbd2-b0c4b1-4a5759
+    const match = url.match(/coolors\.co\/(?:palette\/)?([a-f0-9-]+)/i);
+    if (!match || !match[1]) return [];
+    return match[1].split("-").map((c) => `#${c}`);
+  };
+
+  const handleImportCoolors = () => {
+    setCoolorsError("");
+    const colors = parseCoolorsUrl(coolorsUrl);
+    if (colors.length === 0) {
+      setCoolorsError(
+        "Invalid Coolors URL. Please paste a valid palette link.",
+      );
+      return;
+    }
+    // Update color palette and optionally set primary/secondary/accent
+    setBrandKit({
+      ...brandKit,
+      colorPalette: colors,
+      primaryColor: colors[0] || brandKit?.primaryColor,
+      secondaryColor: colors[1] || brandKit?.secondaryColor,
+      accentColor: colors[2] || brandKit?.accentColor,
+    });
+    setCoolorsUrl("");
+  };
 
   // Initialize state from project when it loads
   if (project && !businessInfo) {
@@ -464,6 +496,38 @@ export function ProjectSettings() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Import from Coolors.co */}
+          <div className="border-t border-gray-200 pt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Import from Coolors.co
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Paste a Coolors palette URL to import colors (e.g.,
+              coolors.co/palette/edafb8-f7e1d7-dedbd2)
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://coolors.co/palette/..."
+                value={coolorsUrl}
+                onChange={(e) => {
+                  setCoolorsUrl(e.target.value);
+                  setCoolorsError("");
+                }}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleImportCoolors}
+                disabled={!coolorsUrl.trim()}
+                variant="secondary"
+              >
+                Import
+              </Button>
+            </div>
+            {coolorsError && (
+              <p className="text-sm text-red-600 mt-2">{coolorsError}</p>
+            )}
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
