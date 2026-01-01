@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "../common/Button";
-import type { Media, BrandKit } from "../../types";
+import {
+  AlignmentPicker,
+  getPositionCoordinates,
+} from "../common/AlignmentPicker";
+import type { Media, BrandKit, TextPosition } from "../../types";
+import { SAFE_ZONE_MARGIN } from "../../types/post";
 
 interface TextOverlay {
   text: string;
@@ -8,7 +13,7 @@ interface TextOverlay {
   fontFamily: string;
   fontWeight: "normal" | "bold";
   color: string;
-  position: "top" | "center" | "bottom";
+  position: TextPosition;
   shadow: boolean;
 }
 
@@ -71,7 +76,7 @@ export function CollageBuilder({
     fontFamily: brandKit?.fonts?.heading || "Inter",
     fontWeight: "bold",
     color: "#ffffff",
-    position: "bottom",
+    position: "bottom-center",
     shadow: false,
   });
 
@@ -361,7 +366,20 @@ export function CollageBuilder({
       const scaledFontSize = (textOverlay.fontSize / CANVAS_SIZE) * size;
       ctx.font = `${textOverlay.fontWeight} ${scaledFontSize}px "${textOverlay.fontFamily}", -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.fillStyle = textOverlay.color;
-      ctx.textAlign = "center";
+
+      // Get position coordinates using the 3x3 grid helper
+      const {
+        x: posX,
+        y: posY,
+        textAlign,
+      } = getPositionCoordinates(
+        textOverlay.position,
+        size,
+        size,
+        SAFE_ZONE_MARGIN,
+      );
+
+      ctx.textAlign = textAlign;
 
       // Apply shadow if enabled
       if (textOverlay.shadow) {
@@ -371,22 +389,19 @@ export function CollageBuilder({
         ctx.shadowOffsetY = 2;
       }
 
-      // Calculate Y position
-      let textY: number;
-      const padding = size * 0.08;
-      if (textOverlay.position === "top") {
+      // Set text baseline based on vertical position
+      const isTop = textOverlay.position.startsWith("top");
+      const isBottom = textOverlay.position.startsWith("bottom");
+      if (isTop) {
         ctx.textBaseline = "top";
-        textY = padding;
-      } else if (textOverlay.position === "center") {
-        ctx.textBaseline = "middle";
-        textY = size / 2;
-      } else {
+      } else if (isBottom) {
         ctx.textBaseline = "bottom";
-        textY = size - padding;
+      } else {
+        ctx.textBaseline = "middle";
       }
 
       // Word wrap for long text
-      const maxWidth = size * 0.9;
+      const maxWidth = size * (1 - SAFE_ZONE_MARGIN * 2);
       const words = textOverlay.text.split(" ");
       const lines: string[] = [];
       let currentLine = "";
@@ -405,16 +420,18 @@ export function CollageBuilder({
 
       // Adjust Y for multi-line text
       const lineHeight = scaledFontSize * 1.2;
-      let startY = textY;
-      if (textOverlay.position === "center") {
-        startY = textY - ((lines.length - 1) * lineHeight) / 2;
-      } else if (textOverlay.position === "bottom") {
-        startY = textY - (lines.length - 1) * lineHeight;
+      let startY = posY;
+      if (!isTop && !isBottom) {
+        // Center - adjust to center all lines
+        startY = posY - ((lines.length - 1) * lineHeight) / 2;
+      } else if (isBottom) {
+        // Bottom - move up for additional lines
+        startY = posY - (lines.length - 1) * lineHeight;
       }
 
       // Draw each line
       lines.forEach((line, i) => {
-        ctx.fillText(line, size / 2, startY + i * lineHeight);
+        ctx.fillText(line, posX, startY + i * lineHeight);
       });
 
       // Reset shadow
@@ -797,26 +814,16 @@ export function CollageBuilder({
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">
+                  <label className="block text-sm text-gray-400 mb-2">
                     Position
                   </label>
-                  <div className="flex gap-2">
-                    {(["top", "center", "bottom"] as const).map((pos) => (
-                      <button
-                        key={pos}
-                        onClick={() =>
-                          setTextOverlay({ ...textOverlay, position: pos })
-                        }
-                        className={`flex-1 py-2 rounded-lg text-sm capitalize ${
-                          textOverlay.position === pos
-                            ? "bg-primary-600 text-white"
-                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                        }`}
-                      >
-                        {pos}
-                      </button>
-                    ))}
-                  </div>
+                  <AlignmentPicker
+                    value={textOverlay.position}
+                    onChange={(position) =>
+                      setTextOverlay({ ...textOverlay, position })
+                    }
+                    size="sm"
+                  />
                 </div>
 
                 <div>
