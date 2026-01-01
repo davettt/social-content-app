@@ -3,14 +3,13 @@ module.exports = {
     {
       name: 'social-content-app',
       script: 'server/index.js',
-      node_args: '--experimental-modules',
       env: {
         NODE_ENV: 'development',
-        PORT: 3001,
+        PORT: 3003,
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3001,
+        PORT: 3003,
       },
       watch: false,
       instances: 1,

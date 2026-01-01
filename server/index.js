@@ -16,7 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const DEFAULT_PORT = parseInt(process.env.PORT || "3001", 10);
+const DEFAULT_PORT = parseInt(process.env.PORT || "3003", 10);
 const MAX_PORT_ATTEMPTS = 10;
 
 // Check if a port is available
@@ -69,7 +69,17 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Error handling
+// Serve static files from dist/ in production (must be AFTER API routes but BEFORE error handler)
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../dist")));
+
+  // SPA fallback - serve index.html for all non-API routes
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../dist/index.html"));
+  });
+}
+
+// Error handling (must be LAST middleware)
 app.use(errorHandler);
 
 // Start server with port fallback

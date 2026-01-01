@@ -16,7 +16,7 @@ function getServerPort(): number {
   } catch {
     // Fall back to default
   }
-  return 3001;
+  return 3003;
 }
 
 const serverPort = getServerPort();
