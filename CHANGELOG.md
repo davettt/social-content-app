@@ -18,6 +18,10 @@
 ### Fixed
 - Template background images no longer duplicate in exports
 - Lint errors in MediaLibrary and TemplatesPage
+- Edited images now clear when media is removed (prevents stale edits persisting)
+- Added "Reset" button to clear image edits and restore original
+- Drop shadow now applies immediately when adding text (checkbox was checked but shadow not rendered)
+- Re-editing an image no longer duplicates text layers (text is baked into flattened image)
 
 ## [1.1.0] - 2025-12-31
 

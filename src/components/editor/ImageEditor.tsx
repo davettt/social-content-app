@@ -80,8 +80,9 @@ export function ImageEditor({
     },
   );
   const [selectedFilter, setSelectedFilter] = useState("Original");
+  // Don't restore text overlays if editing a flattened image (text is baked in)
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>(
-    initialTextOverlays || [],
+    editedImageUrl ? [] : initialTextOverlays || [],
   );
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
 
@@ -172,8 +173,13 @@ export function ImageEditor({
         constrainImagePosition(img, canvas);
       });
 
-      // Restore text overlays from previous session if any
-      if (initialTextOverlays && initialTextOverlays.length > 0) {
+      // Only restore text overlays if editing original image (no editedImageUrl)
+      // If editedImageUrl exists, text is already baked into the flattened image
+      if (
+        !editedImageUrl &&
+        initialTextOverlays &&
+        initialTextOverlays.length > 0
+      ) {
         initialTextOverlays.forEach((overlay) => {
           const text = new IText(overlay.text, {
             left: overlay.x,
@@ -380,6 +386,12 @@ export function ImageEditor({
       fontSize: 32,
       fill: brandKit?.primaryColor || "#ffffff",
       textAlign: "center",
+      shadow: new Shadow({
+        color: "rgba(0, 0, 0, 0.5)",
+        blur: 4,
+        offsetX: 2,
+        offsetY: 2,
+      }),
     });
     // Store custom data on the object
     (text as unknown as { data: { id: string } }).data = { id };

@@ -81,13 +81,19 @@ export const useComposerStore = create<ComposerState>((set) => ({
     }),
 
   removeMedia: (mediaId) =>
-    set((state) => ({
-      selectedMediaIds: state.selectedMediaIds.filter((id) => id !== mediaId),
-      postMedia: state.postMedia
-        .filter((m) => m.mediaId !== mediaId)
-        .map((m, i) => ({ ...m, order: i })),
-      isDirty: true,
-    })),
+    set((state) => {
+      // Also clear any edits for this media
+      const { [mediaId]: _removed, ...remainingEdits } = state.editedImages;
+      void _removed;
+      return {
+        selectedMediaIds: state.selectedMediaIds.filter((id) => id !== mediaId),
+        postMedia: state.postMedia
+          .filter((m) => m.mediaId !== mediaId)
+          .map((m, i) => ({ ...m, order: i })),
+        editedImages: remainingEdits,
+        isDirty: true,
+      };
+    }),
 
   reorderMedia: (fromIndex, toIndex) =>
     set((state) => {
