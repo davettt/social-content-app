@@ -96,6 +96,15 @@ social-content-app/
 | `PORT` | No | Server port (default: 3001) |
 | `NODE_ENV` | No | Environment (development/production) |
 
+## Personal Project Notice
+
+This is a personal project maintained for my own use. You're welcome to:
+- Fork and customize for your own needs
+- Report bugs via GitHub Issues
+- Reference the code for learning
+
+I'm not actively reviewing pull requests or feature requests, as this keeps the project focused on my personal workflow.
+
 ## License
 
 MIT
