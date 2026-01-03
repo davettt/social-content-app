@@ -49,27 +49,58 @@ const CAPTION_STYLE_PROMPTS = {
     "Write in an announcement or news style. Be clear, exciting, and informative. Great for launches, updates, or sharing news.",
 };
 
+const POST_TYPE_PROMPTS = {
+  business:
+    "This is a business/brand post. The caption should subtly reflect the brand's voice and values while focusing on the content.",
+  travel:
+    "This is a personal travel post. Focus on the experience, destination, adventure, and wanderlust. Write like sharing with friends about an amazing trip. Avoid business/brand messaging entirely.",
+  food: "This is a food and dining post. Focus on the culinary experience, flavors, ambiance, or the joy of the meal. Write like sharing a delicious discovery with friends. Avoid business/brand messaging entirely.",
+  lifestyle:
+    "This is a personal lifestyle post. Focus on the moment, feeling, or personal experience. Write authentically like sharing with friends. Avoid business/brand messaging entirely.",
+  event:
+    "This is an event or occasion post. Focus on the celebration, gathering, or special moment. Capture the energy and significance of the event.",
+};
+
 export async function generateCaption({
   mediaDescription,
   businessContext,
   platform = "instagram",
   draftCaption,
   captionStyle = "auto",
+  postType = "business",
+  location,
 }) {
   checkRateLimit("caption");
 
   const styleInstruction =
     CAPTION_STYLE_PROMPTS[captionStyle] || CAPTION_STYLE_PROMPTS.auto;
 
+  const postTypeInstruction =
+    POST_TYPE_PROMPTS[postType] || POST_TYPE_PROMPTS.business;
+
+  // Build location context if available
+  let locationContext = "";
+  if (location && location.placeName) {
+    locationContext = `\nLocation: ${location.placeName}`;
+  } else if (location && location.latitude && location.longitude) {
+    locationContext = `\nLocation: Coordinates ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
+  }
+
+  // Only include business context for business posts
+  const shouldIncludeBusinessContext =
+    postType === "business" && businessContext && businessContext.industry;
+
   const prompt = `You are a social media expert creating engaging captions for ${platform}.
 
-Image/Content Description: ${mediaDescription}
+POST TYPE: ${postTypeInstruction}
+
+Image/Content Description: ${mediaDescription}${locationContext}
 
 ${captionStyle !== "auto" ? `IMPORTANT - Caption Style Required: ${styleInstruction}` : ""}
 
 ${
-  businessContext && businessContext.industry
-    ? `Context (use lightly, focus on the image):
+  shouldIncludeBusinessContext
+    ? `Business Context (use subtly, focus on the image):
 - Industry: ${businessContext.industry}
 - Audience: ${businessContext.targetAudience || "General"}
 - Tone: ${businessContext.tone || "authentic"}
@@ -80,7 +111,8 @@ ${
 ${draftCaption ? `User's Draft: ${draftCaption}` : ""}
 
 Generate 3 caption variations that:
-- Focus on the IMAGE/CONTENT described, not generic business messaging
+- Focus on the IMAGE/CONTENT described${locationContext ? " and naturally incorporate the location" : ""}
+${postType !== "business" ? "- Do NOT include any business or brand messaging - this is a personal post" : ""}
 - ${captionStyle === "quote" ? "Are inspirational quotes that resonate with the image" : ""}
 - ${captionStyle === "personal" ? "Feel authentic and personal, like sharing with friends" : ""}
 - ${captionStyle === "story" ? "Tell a compelling micro-story or share context" : ""}
@@ -88,6 +120,10 @@ Generate 3 caption variations that:
 - ${captionStyle === "announcement" ? "Are clear and exciting announcements" : ""}
 - ${captionStyle === "auto" ? "Are engaging and match the content naturally" : ""}
 - Are optimized for ${platform}
+${postType === "travel" ? "- Evoke wanderlust and the joy of exploration" : ""}
+${postType === "food" ? "- Make readers hungry and curious about the dish/experience" : ""}
+${postType === "lifestyle" ? "- Feel genuine and relatable, like a friend sharing a moment" : ""}
+${postType === "event" ? "- Capture the excitement and significance of the occasion" : ""}
 
 Return as JSON:
 {

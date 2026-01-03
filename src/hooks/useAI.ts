@@ -16,10 +16,16 @@ export function useGenerateCaption() {
         industry?: string;
         targetAudience?: string;
         tone?: string;
-      };
+      } | null;
       platform?: string;
       draftCaption?: string;
       captionStyle?: string;
+      postType?: string;
+      location?: {
+        placeName?: string | null;
+        latitude?: number;
+        longitude?: number;
+      } | null;
     }) => aiApi.generateCaption(data),
   });
 }

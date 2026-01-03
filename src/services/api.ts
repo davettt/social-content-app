@@ -139,10 +139,16 @@ export const aiApi = {
       industry?: string;
       targetAudience?: string;
       tone?: string;
-    };
+    } | null;
     platform?: string;
     draftCaption?: string;
     captionStyle?: string;
+    postType?: string;
+    location?: {
+      placeName?: string | null;
+      latitude?: number;
+      longitude?: number;
+    } | null;
   }) =>
     fetchJson<{ captions: CaptionSuggestion[] }>(
       `${API_BASE}/ai/generate-caption`,

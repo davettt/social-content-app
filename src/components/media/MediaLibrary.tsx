@@ -214,9 +214,15 @@ export function MediaLibrary() {
           <MediaDetail
             media={selectedMedia}
             projectId={projectId}
-            onUpdateMedia={(mediaId, data) =>
-              updateMedia.mutate({ projectId, mediaId, data })
-            }
+            onUpdateMedia={async (mediaId, data) => {
+              const updatedMedia = await updateMedia.mutateAsync({
+                projectId,
+                mediaId,
+                data,
+              });
+              // Update selectedMedia with the returned data to refresh the UI
+              setSelectedMedia(updatedMedia);
+            }}
             onClose={() => setSelectedMedia(null)}
             onEdit={(m) => {
               setSelectedMedia(null);
@@ -401,20 +407,32 @@ function MediaDetail({
   onUpdateMedia: (
     mediaId: string,
     data: { userMetadata: Partial<Media["userMetadata"]> },
-  ) => void;
+  ) => Promise<void>;
   onClose: () => void;
   onEdit: (m: Media) => void;
 }) {
   const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [customLocation, setCustomLocation] = useState(
     media.userMetadata.customLocation || "",
   );
 
-  const handleSaveLocation = () => {
-    onUpdateMedia(media.id, {
-      userMetadata: { customLocation: customLocation.trim() || undefined },
-    });
-    setIsEditingLocation(false);
+  // Sync customLocation when media prop changes (after update)
+  const mediaCustomLocation = media.userMetadata.customLocation || "";
+  if (!isEditingLocation && customLocation !== mediaCustomLocation) {
+    setCustomLocation(mediaCustomLocation);
+  }
+
+  const handleSaveLocation = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdateMedia(media.id, {
+        userMetadata: { customLocation: customLocation.trim() || undefined },
+      });
+      setIsEditingLocation(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Get the display location (custom > auto-detected > coordinates)
@@ -478,59 +496,72 @@ function MediaDetail({
             <p className="font-medium">{media.metadata.camera}</p>
           </div>
         )}
-        {(media.metadata.location || media.userMetadata.customLocation) && (
-          <div className="col-span-2">
-            <span className="text-gray-500">Location:</span>
-            {isEditingLocation ? (
-              <div className="mt-1 flex gap-2">
-                <input
-                  type="text"
-                  value={customLocation}
-                  onChange={(e) => setCustomLocation(e.target.value)}
-                  placeholder={
-                    media.metadata.location?.placeName || "Enter location name"
-                  }
-                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveLocation();
-                    if (e.key === "Escape") setIsEditingLocation(false);
-                  }}
-                />
-                <Button size="sm" onClick={handleSaveLocation}>
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setCustomLocation(media.userMetadata.customLocation || "");
-                    setIsEditingLocation(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <p className="font-medium">{getDisplayLocation()}</p>
-                <button
-                  onClick={() => setIsEditingLocation(true)}
-                  className="text-primary-600 hover:text-primary-700 text-xs"
-                  title="Edit location"
-                >
-                  (edit)
-                </button>
-              </div>
+        <div className="col-span-2">
+          <span className="text-gray-500">Location:</span>
+          {isEditingLocation ? (
+            <div className="mt-1 flex gap-2">
+              <input
+                type="text"
+                value={customLocation}
+                onChange={(e) => setCustomLocation(e.target.value)}
+                placeholder={
+                  media.metadata.location?.placeName || "Enter location name"
+                }
+                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveLocation();
+                  if (e.key === "Escape") setIsEditingLocation(false);
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={handleSaveLocation}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setCustomLocation(media.userMetadata.customLocation || "");
+                  setIsEditingLocation(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : getDisplayLocation() ? (
+            <div className="flex items-center gap-2 mt-1">
+              <p className="font-medium">{getDisplayLocation()}</p>
+              <button
+                onClick={() => setIsEditingLocation(true)}
+                className="text-primary-600 hover:text-primary-700 text-xs"
+                title="Edit location"
+              >
+                (edit)
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-gray-400 italic">No location data</p>
+              <button
+                onClick={() => setIsEditingLocation(true)}
+                className="text-primary-600 hover:text-primary-700 text-xs"
+                title="Add location"
+              >
+                (add)
+              </button>
+            </div>
+          )}
+          {media.userMetadata.customLocation &&
+            media.metadata.location?.placeName && (
+              <p className="text-xs text-gray-400 mt-1">
+                Auto-detected: {media.metadata.location.placeName}
+              </p>
             )}
-            {media.userMetadata.customLocation &&
-              media.metadata.location?.placeName && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Auto-detected: {media.metadata.location.placeName}
-                </p>
-              )}
-          </div>
-        )}
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
