@@ -92,6 +92,7 @@ export function ImageEditor({
       contrast: 0,
       saturation: 0,
       rotation: 0,
+      fineRotation: 0,
     },
   );
   const [selectedFilter, setSelectedFilter] = useState("Original");
@@ -398,13 +399,14 @@ export function ImageEditor({
       if (!img || !canvas) return;
 
       const currentRotation = adjustments.rotation || 0;
+      const fineRotation = adjustments.fineRotation || 0;
       const delta = direction === "right" ? 90 : -90;
       let newRotation = (currentRotation + delta) % 360;
       if (newRotation < 0) newRotation += 360;
 
-      // Set the rotation angle
+      // Set the rotation angle (including fine rotation)
       img.set({
-        angle: newRotation,
+        angle: newRotation + fineRotation,
         originX: "center",
         originY: "center",
       });
@@ -436,7 +438,7 @@ export function ImageEditor({
         rotation: newRotation,
       }));
     },
-    [adjustments.rotation],
+    [adjustments.rotation, adjustments.fineRotation],
   );
 
   // Apply adjustments
@@ -469,19 +471,42 @@ export function ImageEditor({
     applyAdjustments(adjustments);
   }, [adjustments, applyAdjustments]);
 
+  // Apply fine rotation when it changes (separate from zoom)
+  useEffect(() => {
+    const img = imageRef.current;
+    const canvas = fabricCanvasRef.current;
+    const fineRotation = adjustments.fineRotation || 0;
+    const baseRotation = adjustments.rotation || 0;
+
+    if (!img || !canvas) return;
+
+    // Calculate total angle
+    const totalAngle = baseRotation + fineRotation;
+
+    // Just set the angle - let the zoom effect handle scaling
+    img.set({ angle: totalAngle });
+    canvas.renderAll();
+  }, [adjustments.fineRotation, adjustments.rotation]);
+
   // Apply filter preset
   const applyFilterPreset = (filterName: string) => {
     setSelectedFilter(filterName);
     const preset = FILTERS.find((f) => f.name === filterName);
 
     if (!preset || !preset.filter) {
-      setAdjustments({ brightness: 0, contrast: 0, saturation: 0 });
+      setAdjustments((prev) => ({
+        ...prev,
+        brightness: 0,
+        contrast: 0,
+        saturation: 0,
+      }));
     } else {
-      setAdjustments({
+      setAdjustments((prev) => ({
+        ...prev,
         brightness: (preset.filter.brightness || 0) * 100,
         contrast: (preset.filter.contrast || 0) * 100,
         saturation: (preset.filter.saturation || 0) * 100,
-      });
+      }));
     }
   };
 
@@ -822,6 +847,35 @@ export function ImageEditor({
                       Rotated {adjustments.rotation}°
                     </p>
                   )}
+
+                  {/* Fine Rotation / Straighten */}
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm text-gray-300 mb-2">
+                      <span>Straighten</span>
+                      <span>{adjustments.fineRotation ?? 0}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-15"
+                      max="15"
+                      step="0.5"
+                      value={adjustments.fineRotation ?? 0}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        // Snap to 0 when close
+                        const snappedValue =
+                          Math.abs(value) < 0.5 ? 0 : value;
+                        setAdjustments({
+                          ...adjustments,
+                          fineRotation: snappedValue,
+                        });
+                      }}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1 text-center">
+                      Fine-tune to level horizons
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -888,12 +942,13 @@ export function ImageEditor({
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    // Reset color adjustments
+                    // Reset all adjustments including rotation
                     setAdjustments({
                       brightness: 0,
                       contrast: 0,
                       saturation: 0,
                       rotation: 0,
+                      fineRotation: 0,
                     });
                     // Reset image rotation
                     const img = imageRef.current;

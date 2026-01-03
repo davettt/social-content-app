@@ -11,8 +11,6 @@ import { useProject } from "../../hooks/useProjects";
 import { Button } from "../common/Button";
 import { Modal } from "../common/Modal";
 import { PageLoader } from "../common/LoadingSpinner";
-import { ImageEditor } from "../editor/ImageEditor";
-import { VideoEditor } from "../editor/VideoEditor";
 import { CollageBuilder } from "../editor/CollageBuilder";
 import { useComposerStore } from "../../stores/composerStore";
 import type { Media } from "../../types";
@@ -29,8 +27,6 @@ export function MediaLibrary() {
 
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
-  const [editingImage, setEditingImage] = useState<Media | null>(null);
-  const [editingVideo, setEditingVideo] = useState<Media | null>(null);
   const [showCollageBuilder, setShowCollageBuilder] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [collageResult, setCollageResult] = useState<string | null>(null);
@@ -224,38 +220,9 @@ export function MediaLibrary() {
               setSelectedMedia(updatedMedia);
             }}
             onClose={() => setSelectedMedia(null)}
-            onEdit={(m) => {
-              setSelectedMedia(null);
-              if (m.type === "image") {
-                setEditingImage(m);
-              } else {
-                setEditingVideo(m);
-              }
-            }}
           />
         )}
       </Modal>
-
-      {/* Image Editor */}
-      {editingImage && (
-        <ImageEditor
-          media={editingImage}
-          brandKit={project?.brandKit}
-          onSave={() => {
-            // For now, just close - in future could save edited version
-            setEditingImage(null);
-          }}
-          onClose={() => setEditingImage(null)}
-        />
-      )}
-
-      {/* Video Editor */}
-      {editingVideo && (
-        <VideoEditor
-          media={editingVideo}
-          onClose={() => setEditingVideo(null)}
-        />
-      )}
 
       {/* Collage Builder */}
       {showCollageBuilder && media && (
@@ -400,7 +367,6 @@ function MediaDetail({
   media,
   onUpdateMedia,
   onClose,
-  onEdit,
 }: {
   media: Media;
   projectId: string;
@@ -409,7 +375,6 @@ function MediaDetail({
     data: { userMetadata: Partial<Media["userMetadata"]> },
   ) => Promise<void>;
   onClose: () => void;
-  onEdit: (m: Media) => void;
 }) {
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -564,12 +529,9 @@ function MediaDetail({
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end gap-3">
+      <div className="mt-6 flex justify-end">
         <Button variant="secondary" onClick={onClose}>
           Close
-        </Button>
-        <Button onClick={() => onEdit(media)}>
-          Edit {media.type === "image" ? "Image" : "Video"}
         </Button>
       </div>
     </div>

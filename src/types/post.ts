@@ -104,6 +104,7 @@ export interface ImageAdjustments {
   contrast: number; // -100 to 100
   saturation: number; // -100 to 100
   rotation?: number; // 0, 90, 180, 270 degrees
+  fineRotation?: number; // -15 to 15 degrees for straightening
 }
 
 export interface TextOverlay {
