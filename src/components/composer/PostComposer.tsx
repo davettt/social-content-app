@@ -71,6 +71,41 @@ const CAPTION_STYLES = [
   },
 ] as const;
 
+const POST_TYPES = [
+  {
+    id: "business",
+    label: "Business",
+    description: "Business/brand focused post",
+    icon: "💼",
+  },
+  {
+    id: "travel",
+    label: "Travel",
+    description: "Travel and adventure content",
+    icon: "✈️",
+  },
+  {
+    id: "food",
+    label: "Food",
+    description: "Food and dining experiences",
+    icon: "🍽️",
+  },
+  {
+    id: "lifestyle",
+    label: "Lifestyle",
+    description: "Personal lifestyle content",
+    icon: "🌟",
+  },
+  {
+    id: "event",
+    label: "Event",
+    description: "Event or occasion coverage",
+    icon: "🎉",
+  },
+] as const;
+
+type PostType = (typeof POST_TYPES)[number]["id"];
+
 export function PostComposer() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -111,6 +146,7 @@ export function PostComposer() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [editingMedia, setEditingMedia] = useState<Media | null>(null);
   const [captionStyle, setCaptionStyle] = useState<string>("auto");
+  const [postType, setPostType] = useState<PostType>("business");
   const [imageContext, setImageContext] = useState("");
   const [previewPlatform, setPreviewPlatform] = useState<Platform>(
     platforms[0] || "instagram",
@@ -234,15 +270,33 @@ export function PostComposer() {
   const handleGenerateCaption = async () => {
     if (!project) return;
 
+    // Extract location from selected media (use first media with location)
+    const mediaWithLocation = selectedMedia.find((m) => m.metadata?.location);
+    const location = mediaWithLocation?.metadata?.location
+      ? {
+          placeName:
+            mediaWithLocation.userMetadata?.customLocation ||
+            mediaWithLocation.metadata.location.placeName ||
+            null,
+          latitude: mediaWithLocation.metadata.location.latitude,
+          longitude: mediaWithLocation.metadata.location.longitude,
+        }
+      : null;
+
     const result = await generateCaption.mutateAsync({
       mediaDescription: imageContext || "Photo to share on social media",
-      businessContext: {
-        industry: project.businessInfo.industry,
-        targetAudience: project.businessInfo.targetAudience,
-        tone: project.businessInfo.tone,
-      },
+      businessContext:
+        postType === "business"
+          ? {
+              industry: project.businessInfo.industry,
+              targetAudience: project.businessInfo.targetAudience,
+              tone: project.businessInfo.tone,
+            }
+          : null, // Don't pass business context for personal posts
       platform: platforms[0] || "instagram",
       captionStyle: captionStyle,
+      postType: postType,
+      location: location,
     });
 
     setCaptionSuggestions(result.captions);
@@ -470,6 +524,35 @@ export function PostComposer() {
               <p className="text-sm font-medium text-gray-700 mb-3">
                 AI Caption Assistant
               </p>
+
+              {/* Post Type */}
+              <div className="mb-3">
+                <label className="block text-xs text-gray-500 mb-1">
+                  What type of post is this?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {POST_TYPES.map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => setPostType(type.id)}
+                      className={`px-3 py-1.5 text-xs rounded-full transition-colors flex items-center gap-1 ${
+                        postType === type.id
+                          ? "bg-primary-500 text-white"
+                          : "bg-white border border-gray-200 text-gray-600 hover:border-primary-300"
+                      }`}
+                      title={type.description}
+                    >
+                      <span>{type.icon}</span>
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+                {postType !== "business" && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Personal post - business context will be minimized
+                  </p>
+                )}
+              </div>
 
               {/* Image Context */}
               <div className="mb-3">

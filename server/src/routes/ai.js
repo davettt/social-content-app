@@ -34,6 +34,8 @@ router.post("/generate-caption", async (req, res, next) => {
       platform,
       draftCaption,
       captionStyle,
+      postType,
+      location,
     } = req.body;
 
     if (!mediaDescription) {
@@ -46,6 +48,8 @@ router.post("/generate-caption", async (req, res, next) => {
       platform,
       draftCaption,
       captionStyle,
+      postType,
+      location,
     });
 
     res.json(result);

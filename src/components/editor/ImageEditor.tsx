@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas, FabricImage, IText, filters, Shadow, Line } from "fabric";
+import {
+  Canvas,
+  FabricImage,
+  IText,
+  Textbox,
+  filters,
+  Shadow,
+  Line,
+} from "fabric";
 import { Button } from "../common/Button";
 import {
   AlignmentPicker,
@@ -189,8 +197,11 @@ export function ImageEditor({
         initialTextOverlays &&
         initialTextOverlays.length > 0
       ) {
+        // Calculate max width for text wrapping
+        const maxTextWidth = canvas.width! * (1 - 2 * SAFE_ZONE_MARGIN);
+
         initialTextOverlays.forEach((overlay) => {
-          const text = new IText(overlay.text, {
+          const text = new Textbox(overlay.text, {
             left: overlay.x,
             top: overlay.y,
             originX: "center",
@@ -201,6 +212,8 @@ export function ImageEditor({
             textAlign: overlay.textAlign || "center",
             angle: overlay.rotation || 0,
             opacity: overlay.opacity || 1,
+            width: maxTextWidth,
+            splitByGrapheme: false,
           });
           // Store custom data on the object
           (text as unknown as { data: { id: string } }).data = {
@@ -496,7 +509,11 @@ export function ImageEditor({
         ? "bottom"
         : "center";
 
-    const text = new IText(initialText, {
+    // Calculate max width for text wrapping (canvas width minus safe zone margins)
+    const maxTextWidth = canvas.width! * (1 - 2 * SAFE_ZONE_MARGIN);
+
+    // Use Textbox for automatic text wrapping
+    const text = new Textbox(initialText, {
       left: x,
       top: y,
       originX,
@@ -505,6 +522,8 @@ export function ImageEditor({
       fontSize: 32,
       fill: brandKit?.primaryColor || "#ffffff",
       textAlign,
+      width: maxTextWidth,
+      splitByGrapheme: false, // Wrap at word boundaries
       shadow: new Shadow({
         color: "rgba(0, 0, 0, 0.5)",
         blur: 4,
@@ -543,7 +562,12 @@ export function ImageEditor({
     const canvas = fabricCanvasRef.current;
     const activeObject = canvas?.getActiveObject();
 
-    if (!canvas || !activeObject || !(activeObject instanceof IText)) return;
+    if (
+      !canvas ||
+      !activeObject ||
+      (!(activeObject instanceof IText) && !(activeObject instanceof Textbox))
+    )
+      return;
 
     const { x, y, textAlign } = getPositionCoordinates(
       position,
@@ -621,7 +645,10 @@ export function ImageEditor({
     const canvas = fabricCanvasRef.current;
     const activeObject = canvas?.getActiveObject();
 
-    if (activeObject && activeObject instanceof IText) {
+    if (
+      activeObject &&
+      (activeObject instanceof IText || activeObject instanceof Textbox)
+    ) {
       switch (property) {
         case "fontFamily":
           activeObject.set("fontFamily", value as string);
@@ -1000,10 +1027,10 @@ export function ImageEditor({
                                 `${media.metadata.location?.latitude.toFixed(4)}, ${media.metadata.location?.longitude.toFixed(4)}`,
                             )
                           }
-                          className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+                          className="w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm break-words"
                         >
                           <span className="text-gray-400">Location: </span>
-                          <span className="text-white">
+                          <span className="text-white break-words">
                             {media.userMetadata.customLocation ||
                               media.metadata.location?.placeName ||
                               `${media.metadata.location?.latitude.toFixed(4)}, ${media.metadata.location?.longitude.toFixed(4)}`}
