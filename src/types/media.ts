@@ -20,6 +20,7 @@ export interface UserMediaMetadata {
   showTime: boolean;
   showLocation: boolean;
   customCaption: string;
+  customLocation?: string; // User-editable location name (overrides auto-detected)
 }
 
 export interface Media {

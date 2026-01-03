@@ -76,9 +76,10 @@ async function writeMediaIndex(projectId, data) {
   await writeJsonFile(indexPath, data);
 }
 
-// Generate thumbnail for image
+// Generate thumbnail for image (with EXIF orientation correction)
 async function generateThumbnail(sourcePath, destPath) {
   await sharp(sourcePath)
+    .rotate() // Auto-rotate based on EXIF orientation
     .resize(400, 400, { fit: "cover", position: "center" })
     .jpeg({ quality: 80 })
     .toFile(destPath);

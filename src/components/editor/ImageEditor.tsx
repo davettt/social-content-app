@@ -83,6 +83,7 @@ export function ImageEditor({
       brightness: 0,
       contrast: 0,
       saturation: 0,
+      rotation: 0,
     },
   );
   const [selectedFilter, setSelectedFilter] = useState("Original");
@@ -376,6 +377,55 @@ export function ImageEditor({
     canvas.renderAll();
   }, [baseScale]);
 
+  // Rotate image by 90 degrees
+  const rotateImage = useCallback(
+    (direction: "left" | "right") => {
+      const img = imageRef.current;
+      const canvas = fabricCanvasRef.current;
+      if (!img || !canvas) return;
+
+      const currentRotation = adjustments.rotation || 0;
+      const delta = direction === "right" ? 90 : -90;
+      let newRotation = (currentRotation + delta) % 360;
+      if (newRotation < 0) newRotation += 360;
+
+      // Set the rotation angle
+      img.set({
+        angle: newRotation,
+        originX: "center",
+        originY: "center",
+      });
+
+      // Recalculate scale to fit after rotation
+      const isRotated90or270 = newRotation === 90 || newRotation === 270;
+      const effectiveWidth = isRotated90or270 ? img.height! : img.width!;
+      const effectiveHeight = isRotated90or270 ? img.width! : img.height!;
+
+      const newBaseScale = Math.min(
+        canvas.width! / effectiveWidth,
+        canvas.height! / effectiveHeight,
+      );
+
+      setBaseScale(newBaseScale);
+      setImageZoom(1);
+
+      img.set({
+        scaleX: newBaseScale,
+        scaleY: newBaseScale,
+        left: canvas.width! / 2,
+        top: canvas.height! / 2,
+      });
+
+      canvas.renderAll();
+
+      setAdjustments((prev) => ({
+        ...prev,
+        rotation: newRotation,
+      }));
+    },
+    [adjustments.rotation],
+  );
+
   // Apply adjustments
   const applyAdjustments = useCallback((adj: ImageAdjustments) => {
     const img = imageRef.current;
@@ -663,14 +713,14 @@ export function ImageEditor({
         </div>
       </div>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Canvas */}
         <div className="flex-1 flex items-center justify-center p-8">
           <canvas ref={canvasRef} className="rounded-lg shadow-2xl" />
         </div>
 
         {/* Sidebar */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700 overflow-y-auto">
+        <div className="w-80 bg-gray-800 border-l border-gray-700 overflow-y-auto flex-shrink-0">
           {/* Tabs */}
           <div className="flex border-b border-gray-700">
             {(["adjust", "filter", "text"] as const).map((tab) => (
@@ -691,6 +741,62 @@ export function ImageEditor({
           <div className="p-4">
             {activeTab === "adjust" && (
               <div className="space-y-6">
+                {/* Rotation Controls */}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-2">
+                    Rotation
+                  </label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => rotateImage("left")}
+                      className="flex-1 flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                        />
+                      </svg>
+                      Rotate Left
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => rotateImage("right")}
+                      className="flex-1 flex items-center justify-center gap-2"
+                    >
+                      Rotate Right
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"
+                        />
+                      </svg>
+                    </Button>
+                  </div>
+                  {(adjustments.rotation ?? 0) !== 0 && (
+                    <p className="text-xs text-gray-500 mt-1 text-center">
+                      Rotated {adjustments.rotation}°
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <div className="flex justify-between text-sm text-gray-300 mb-2">
                     <span>Brightness</span>
@@ -754,13 +860,22 @@ export function ImageEditor({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
+                  onClick={() => {
+                    // Reset color adjustments
                     setAdjustments({
                       brightness: 0,
                       contrast: 0,
                       saturation: 0,
-                    })
-                  }
+                      rotation: 0,
+                    });
+                    // Reset image rotation
+                    const img = imageRef.current;
+                    const canvas = fabricCanvasRef.current;
+                    if (img && canvas) {
+                      img.set({ angle: 0 });
+                      canvas.renderAll();
+                    }
+                  }}
                   className="w-full"
                 >
                   Reset Adjustments
@@ -875,11 +990,13 @@ export function ImageEditor({
                           </span>
                         </button>
                       )}
-                      {media.metadata.location && (
+                      {(media.metadata.location ||
+                        media.userMetadata.customLocation) && (
                         <button
                           onClick={() =>
                             addTextOverlay(
-                              media.metadata.location?.placeName ||
+                              media.userMetadata.customLocation ||
+                                media.metadata.location?.placeName ||
                                 `${media.metadata.location?.latitude.toFixed(4)}, ${media.metadata.location?.longitude.toFixed(4)}`,
                             )
                           }
@@ -887,8 +1004,9 @@ export function ImageEditor({
                         >
                           <span className="text-gray-400">Location: </span>
                           <span className="text-white">
-                            {media.metadata.location.placeName ||
-                              `${media.metadata.location.latitude.toFixed(4)}, ${media.metadata.location.longitude.toFixed(4)}`}
+                            {media.userMetadata.customLocation ||
+                              media.metadata.location?.placeName ||
+                              `${media.metadata.location?.latitude.toFixed(4)}, ${media.metadata.location?.longitude.toFixed(4)}`}
                           </span>
                         </button>
                       )}

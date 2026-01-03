@@ -1,7 +1,12 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { useMedia, useUploadMedia, useDeleteMedia } from "../../hooks/useMedia";
+import {
+  useMedia,
+  useUploadMedia,
+  useDeleteMedia,
+  useUpdateMedia,
+} from "../../hooks/useMedia";
 import { useProject } from "../../hooks/useProjects";
 import { Button } from "../common/Button";
 import { Modal } from "../common/Modal";
@@ -19,6 +24,7 @@ export function MediaLibrary() {
   const { data: media, isLoading } = useMedia(projectId);
   const uploadMedia = useUploadMedia();
   const deleteMedia = useDeleteMedia();
+  const updateMedia = useUpdateMedia();
   const { addGeneratedImage } = useComposerStore();
 
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
@@ -30,11 +36,50 @@ export function MediaLibrary() {
   const [collageResult, setCollageResult] = useState<string | null>(null);
 
   const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
+    async (
+      acceptedFiles: File[],
+      fileRejections: {
+        file: File;
+        errors: readonly { code: string; message: string }[];
+      }[],
+    ) => {
       if (!projectId) return;
+
+      // Log rejected files
+      if (fileRejections.length > 0) {
+        console.error("Rejected files:", fileRejections);
+        alert(
+          `${fileRejections.length} file(s) rejected:\n${fileRejections
+            .map(
+              (r) =>
+                `${r.file.name}: ${r.errors.map((e) => e.message).join(", ")}`,
+            )
+            .join("\n")}`,
+        );
+      }
+
+      if (acceptedFiles.length === 0) {
+        console.log("No accepted files");
+        return;
+      }
+
+      console.log(
+        "Uploading files:",
+        acceptedFiles.map((f) => ({
+          name: f.name,
+          type: f.type,
+          size: f.size,
+        })),
+      );
       setIsUploading(true);
       try {
         await uploadMedia.mutateAsync({ projectId, files: acceptedFiles });
+        console.log("Upload successful");
+      } catch (error) {
+        console.error("Upload failed:", error);
+        alert(
+          `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       } finally {
         setIsUploading(false);
       }
@@ -165,9 +210,13 @@ export function MediaLibrary() {
         title="Media Details"
         size="lg"
       >
-        {selectedMedia && (
+        {selectedMedia && projectId && (
           <MediaDetail
             media={selectedMedia}
+            projectId={projectId}
+            onUpdateMedia={(mediaId, data) =>
+              updateMedia.mutate({ projectId, mediaId, data })
+            }
             onClose={() => setSelectedMedia(null)}
             onEdit={(m) => {
               setSelectedMedia(null);
@@ -343,13 +392,45 @@ function MediaCard({
 
 function MediaDetail({
   media,
+  onUpdateMedia,
   onClose,
   onEdit,
 }: {
   media: Media;
+  projectId: string;
+  onUpdateMedia: (
+    mediaId: string,
+    data: { userMetadata: Partial<Media["userMetadata"]> },
+  ) => void;
   onClose: () => void;
   onEdit: (m: Media) => void;
 }) {
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [customLocation, setCustomLocation] = useState(
+    media.userMetadata.customLocation || "",
+  );
+
+  const handleSaveLocation = () => {
+    onUpdateMedia(media.id, {
+      userMetadata: { customLocation: customLocation.trim() || undefined },
+    });
+    setIsEditingLocation(false);
+  };
+
+  // Get the display location (custom > auto-detected > coordinates)
+  const getDisplayLocation = () => {
+    if (media.userMetadata.customLocation) {
+      return media.userMetadata.customLocation;
+    }
+    if (media.metadata.location?.placeName) {
+      return media.metadata.location.placeName;
+    }
+    if (media.metadata.location) {
+      return `${media.metadata.location.latitude.toFixed(4)}, ${media.metadata.location.longitude.toFixed(4)}`;
+    }
+    return null;
+  };
+
   return (
     <div className="p-6">
       <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-6">
@@ -397,13 +478,57 @@ function MediaDetail({
             <p className="font-medium">{media.metadata.camera}</p>
           </div>
         )}
-        {media.metadata.location && (
-          <div>
+        {(media.metadata.location || media.userMetadata.customLocation) && (
+          <div className="col-span-2">
             <span className="text-gray-500">Location:</span>
-            <p className="font-medium">
-              {media.metadata.location.placeName ||
-                `${media.metadata.location.latitude.toFixed(4)}, ${media.metadata.location.longitude.toFixed(4)}`}
-            </p>
+            {isEditingLocation ? (
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="text"
+                  value={customLocation}
+                  onChange={(e) => setCustomLocation(e.target.value)}
+                  placeholder={
+                    media.metadata.location?.placeName || "Enter location name"
+                  }
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveLocation();
+                    if (e.key === "Escape") setIsEditingLocation(false);
+                  }}
+                />
+                <Button size="sm" onClick={handleSaveLocation}>
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setCustomLocation(media.userMetadata.customLocation || "");
+                    setIsEditingLocation(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <p className="font-medium">{getDisplayLocation()}</p>
+                <button
+                  onClick={() => setIsEditingLocation(true)}
+                  className="text-primary-600 hover:text-primary-700 text-xs"
+                  title="Edit location"
+                >
+                  (edit)
+                </button>
+              </div>
+            )}
+            {media.userMetadata.customLocation &&
+              media.metadata.location?.placeName && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Auto-detected: {media.metadata.location.placeName}
+                </p>
+              )}
           </div>
         )}
       </div>
