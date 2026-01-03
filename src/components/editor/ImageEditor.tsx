@@ -863,8 +863,7 @@ export function ImageEditor({
                       onChange={(e) => {
                         const value = Number(e.target.value);
                         // Snap to 0 when close
-                        const snappedValue =
-                          Math.abs(value) < 0.5 ? 0 : value;
+                        const snappedValue = Math.abs(value) < 0.5 ? 0 : value;
                         setAdjustments({
                           ...adjustments,
                           fineRotation: snappedValue,

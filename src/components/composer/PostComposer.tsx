@@ -32,14 +32,50 @@ const PLATFORM_ICONS: Record<Platform, React.ReactNode> = {
   linkedin: <span className="text-blue-700">in</span>,
 };
 
-const PLATFORM_DIMENSIONS: Record<
-  Platform,
-  { width: number; height: number; label: string }
-> = {
-  instagram: { width: 1, height: 1, label: "1:1 Square" },
-  threads: { width: 4, height: 5, label: "4:5 Portrait" },
-  twitter: { width: 16, height: 9, label: "16:9 Landscape" },
-  linkedin: { width: 1.91, height: 1, label: "1.91:1 Landscape" },
+// Aspect ratio options per platform (based on 2025/2026 platform guidelines)
+type AspectRatio = { width: number; height: number; label: string };
+
+const PLATFORM_ASPECT_OPTIONS: Record<Platform, AspectRatio[]> = {
+  instagram: [
+    { width: 4, height: 5, label: "4:5 Portrait" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 9, height: 16, label: "9:16 Story/Reels" },
+  ],
+  threads: [
+    { width: 4, height: 5, label: "4:5 Portrait" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 9, height: 16, label: "9:16 Story" },
+  ],
+  twitter: [
+    { width: 16, height: 9, label: "16:9 Landscape" },
+    { width: 2, height: 1, label: "2:1 Wide" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 3, height: 4, label: "3:4 Portrait" },
+  ],
+  linkedin: [
+    { width: 1.91, height: 1, label: "1.91:1 Landscape" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 4, height: 5, label: "4:5 Portrait" },
+  ],
+};
+
+// Default aspect ratio index for each platform (first option)
+const PLATFORM_DEFAULT_ASPECT: Record<Platform, number> = {
+  instagram: 0, // 4:5 Portrait
+  threads: 0, // 4:5 Portrait
+  twitter: 0, // 16:9 Landscape
+  linkedin: 0, // 1.91:1 Landscape
+};
+
+// Helper to get current dimensions for a platform
+const getPlatformDimensions = (
+  platform: Platform,
+  aspectIndex: number,
+): AspectRatio => {
+  const options = PLATFORM_ASPECT_OPTIONS[platform];
+  const selected = options[aspectIndex];
+  if (selected) return selected;
+  return options[0] as AspectRatio;
 };
 
 const CAPTION_STYLES = [
@@ -151,6 +187,10 @@ export function PostComposer() {
   const [previewPlatform, setPreviewPlatform] = useState<Platform>(
     platforms[0] || "instagram",
   );
+  // Track selected aspect ratio index per platform
+  const [platformAspects, setPlatformAspects] = useState<
+    Record<Platform, number>
+  >(() => ({ ...PLATFORM_DEFAULT_ASPECT }));
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null);
   const [templateApplied, setTemplateApplied] = useState(false);
   const [templatePromptValues, setTemplatePromptValues] = useState<
@@ -786,7 +826,10 @@ export function PostComposer() {
               {platforms.length > 0 && (
                 <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
                   {platforms.map((platform) => {
-                    const dims = PLATFORM_DIMENSIONS[platform];
+                    const dims = getPlatformDimensions(
+                      platform,
+                      platformAspects[platform],
+                    );
                     return (
                       <button
                         key={platform}
@@ -806,11 +849,29 @@ export function PostComposer() {
               )}
             </div>
 
-            {/* Aspect ratio label */}
+            {/* Aspect ratio selector */}
             {platforms.length > 0 && (
-              <p className="text-xs text-gray-500 mb-2 text-center">
-                {PLATFORM_DIMENSIONS[previewPlatform].label}
-              </p>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <span className="text-xs text-gray-500">Aspect:</span>
+                <select
+                  value={platformAspects[previewPlatform]}
+                  onChange={(e) =>
+                    setPlatformAspects((prev) => ({
+                      ...prev,
+                      [previewPlatform]: parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  {PLATFORM_ASPECT_OPTIONS[previewPlatform].map(
+                    (option, idx) => (
+                      <option key={idx} value={idx}>
+                        {option.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
             )}
 
             <div className="bg-gray-100 rounded-lg p-4">
@@ -830,7 +891,10 @@ export function PostComposer() {
                 ];
                 const totalItems = previewItems.length;
                 const currentItem = previewItems[currentImageIndex];
-                const dims = PLATFORM_DIMENSIONS[previewPlatform];
+                const dims = getPlatformDimensions(
+                  previewPlatform,
+                  platformAspects[previewPlatform],
+                );
 
                 if (totalItems === 0) {
                   return (
