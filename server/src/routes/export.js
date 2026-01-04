@@ -12,33 +12,44 @@ const router = express.Router();
 // Store for pending exports (in-memory for simplicity)
 const pendingExports = new Map();
 
-// Platform-specific image dimensions
-const PLATFORM_SIZES = {
-  instagram: {
-    name: "Instagram",
-    width: 1080,
-    height: 1080,
-    fit: "cover", // Square format - crops to fill
-  },
-  threads: {
-    name: "Threads",
-    width: 1080,
-    height: 1350,
-    fit: "cover", // Portrait format like Instagram stories
-  },
-  twitter: {
-    name: "Twitter",
-    width: 1200,
-    height: 675,
-    fit: "cover", // Landscape format
-  },
-  linkedin: {
-    name: "LinkedIn",
-    width: 1200,
-    height: 627,
-    fit: "cover", // Landscape format
-  },
+// Platform names for folder structure
+const PLATFORM_NAMES = {
+  instagram: "Instagram",
+  threads: "Threads",
+  twitter: "Twitter",
+  linkedin: "LinkedIn",
 };
+
+// Default aspect ratios (used if not provided by frontend)
+const DEFAULT_PLATFORM_ASPECTS = {
+  instagram: { width: 4, height: 5 },
+  threads: { width: 4, height: 5 },
+  twitter: { width: 16, height: 9 },
+  linkedin: { width: 1.91, height: 1 },
+};
+
+// Base size for exports (longest dimension)
+const EXPORT_BASE_SIZE = 1080;
+
+// Calculate pixel dimensions from aspect ratio
+function getExportDimensions(aspectRatio) {
+  const { width, height } = aspectRatio;
+  const ratio = width / height;
+
+  if (ratio >= 1) {
+    // Landscape or square
+    return {
+      width: EXPORT_BASE_SIZE,
+      height: Math.round(EXPORT_BASE_SIZE / ratio),
+    };
+  } else {
+    // Portrait
+    return {
+      width: Math.round(EXPORT_BASE_SIZE * ratio),
+      height: EXPORT_BASE_SIZE,
+    };
+  }
+}
 
 // Helper function to get image buffer from edited data URL or original file
 async function getImageBuffer(media, editedImages) {
@@ -57,15 +68,14 @@ async function getImageBuffer(media, editedImages) {
   return await fs.readFile(sourcePath);
 }
 
-// Helper function to resize image for a platform
-async function resizeForPlatform(inputBuffer, platform) {
-  const config = PLATFORM_SIZES[platform];
-  if (!config) return inputBuffer;
+// Helper function to resize image to specific dimensions
+async function resizeImage(inputBuffer, dimensions) {
+  if (!dimensions) return inputBuffer;
 
   try {
     return await sharp(inputBuffer)
-      .resize(config.width, config.height, {
-        fit: config.fit,
+      .resize(dimensions.width, dimensions.height, {
+        fit: "cover",
         position: "center",
         kernel: "lanczos3",
       })
@@ -75,7 +85,7 @@ async function resizeForPlatform(inputBuffer, platform) {
       })
       .toBuffer();
   } catch (e) {
-    console.warn(`Could not resize for ${platform}:`, e.message);
+    console.warn(`Could not resize image:`, e.message);
     return inputBuffer;
   }
 }
@@ -83,8 +93,15 @@ async function resizeForPlatform(inputBuffer, platform) {
 // POST /api/export/prepare - Prepare export package
 router.post("/prepare", async (req, res, next) => {
   try {
-    const { projectId, platforms, caption, mediaIds, editedImages, collages } =
-      req.body;
+    const {
+      projectId,
+      platforms,
+      platformAspects,
+      caption,
+      mediaIds,
+      editedImages,
+      collages,
+    } = req.body;
 
     if (!projectId) {
       throw new ValidationError("Project ID is required");
@@ -119,10 +136,15 @@ router.post("/prepare", async (req, res, next) => {
 
     // Create platform-specific folders and process images
     for (const platform of selectedPlatforms) {
-      const platformConfig = PLATFORM_SIZES[platform];
-      if (!platformConfig) continue;
+      const platformName = PLATFORM_NAMES[platform];
+      if (!platformName) continue;
 
-      const platformDir = path.join(exportsDir, platformConfig.name);
+      // Get aspect ratio from request or use default
+      const aspectRatio =
+        platformAspects?.[platform] || DEFAULT_PLATFORM_ASPECTS[platform];
+      const dimensions = getExportDimensions(aspectRatio);
+
+      const platformDir = path.join(exportsDir, platformName);
       await fs.mkdir(platformDir, { recursive: true });
 
       // Process each media file for this platform
@@ -136,9 +158,7 @@ router.post("/prepare", async (req, res, next) => {
             const sourcePath = path.join(PROJECTS_DIR, media.originalPath);
             const destPath = path.join(platformDir, media.filename);
             await fs.copyFile(sourcePath, destPath);
-            console.log(
-              `Copied video ${media.filename} to ${platformConfig.name}`,
-            );
+            console.log(`Copied video ${media.filename} to ${platformName}`);
           } catch (e) {
             console.warn(`Could not copy video ${media.filename}:`, e.message);
           }
@@ -149,8 +169,8 @@ router.post("/prepare", async (req, res, next) => {
           // Get the source image buffer (edited or original)
           const inputBuffer = await getImageBuffer(media, editedImages);
 
-          // Resize for this platform
-          const resizedBuffer = await resizeForPlatform(inputBuffer, platform);
+          // Resize to the selected aspect ratio dimensions
+          const resizedBuffer = await resizeImage(inputBuffer, dimensions);
 
           // Save with platform-specific filename
           const baseName = media.filename.replace(/\.[^.]+$/, "");
@@ -159,7 +179,7 @@ router.post("/prepare", async (req, res, next) => {
 
           await fs.writeFile(destPath, resizedBuffer);
           console.log(
-            `Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`,
+            `Saved ${destFilename} (${dimensions.width}x${dimensions.height}) to ${platformName}`,
           );
         } catch (e) {
           console.warn(
@@ -180,11 +200,8 @@ router.post("/prepare", async (req, res, next) => {
               const base64Data = matches[2];
               const inputBuffer = Buffer.from(base64Data, "base64");
 
-              // Resize for this platform
-              const resizedBuffer = await resizeForPlatform(
-                inputBuffer,
-                platform,
-              );
+              // Resize to the selected aspect ratio dimensions
+              const resizedBuffer = await resizeImage(inputBuffer, dimensions);
 
               // Save with collage filename
               const destFilename = `collage_${i + 1}.png`;
@@ -192,7 +209,7 @@ router.post("/prepare", async (req, res, next) => {
 
               await fs.writeFile(destPath, resizedBuffer);
               console.log(
-                `Saved ${destFilename} (${platformConfig.width}x${platformConfig.height}) to ${platformConfig.name}`,
+                `Saved ${destFilename} (${dimensions.width}x${dimensions.height}) to ${platformName}`,
               );
             }
           } catch (e) {
@@ -280,10 +297,8 @@ router.get("/:id/download", async (req, res, next) => {
     // Build platform info for README
     const platformDetails = exportInfo.platforms
       .map((p) => {
-        const config = PLATFORM_SIZES[p];
-        return config
-          ? `  - ${config.name}/: ${config.width}x${config.height}px images`
-          : `  - ${p}/`;
+        const name = PLATFORM_NAMES[p];
+        return name ? `  - ${name}/` : `  - ${p}/`;
       })
       .join("\n");
 
@@ -300,14 +315,8 @@ Folder Structure:
 ${platformDetails}
 
 Each platform folder contains:
-- Images optimized and sized for that platform
+- Images sized to your selected aspect ratio for that platform
 - caption.txt with your caption and hashtags
-
-Image Sizes:
-- Instagram: 1080x1080 (square)
-- Threads: 1080x1350 (portrait)
-- Twitter/X: 1200x675 (landscape)
-- LinkedIn: 1200x627 (landscape)
 
 How to post:
 1. Open the folder for your target platform

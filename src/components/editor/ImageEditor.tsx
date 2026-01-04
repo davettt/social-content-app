@@ -32,6 +32,8 @@ interface ImageEditorProps {
   initialAdjustments?: ImageAdjustments;
   /** Initial text overlays to restore from previous edit session */
   initialTextOverlays?: TextOverlay[];
+  /** Aspect ratio for the canvas (width/height). Defaults to 1 (square) */
+  aspectRatio?: { width: number; height: number };
   onSave: (
     dataUrl: string,
     edits: { adjustments: ImageAdjustments; textOverlays: TextOverlay[] },
@@ -70,18 +72,29 @@ const FONTS = [
   "Impact",
 ];
 
+// Base canvas size (longest dimension)
+const CANVAS_BASE_SIZE = 600;
+
 export function ImageEditor({
   media,
   brandKit,
   editedImageUrl,
   initialAdjustments,
   initialTextOverlays,
+  aspectRatio = { width: 1, height: 1 },
   onSave,
   onClose,
 }: ImageEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const imageRef = useRef<FabricImage | null>(null);
+
+  // Calculate canvas dimensions based on aspect ratio
+  const ratio = aspectRatio.width / aspectRatio.height;
+  const canvasWidth =
+    ratio >= 1 ? CANVAS_BASE_SIZE : Math.round(CANVAS_BASE_SIZE * ratio);
+  const canvasHeight =
+    ratio >= 1 ? Math.round(CANVAS_BASE_SIZE / ratio) : CANVAS_BASE_SIZE;
 
   const [activeTab, setActiveTab] = useState<
     "crop" | "adjust" | "filter" | "text"
@@ -120,21 +133,31 @@ export function ImageEditor({
       let left = img.left!;
       let top = img.top!;
 
-      // Image should not show background on any side
-      // Constrain horizontal
+      // With center origin, left/top is the center of the image
+      // Image edges: left edge = left - imgWidth/2, right edge = left + imgWidth/2
+
+      // Constrain horizontal (image should cover canvas)
       if (imgWidth >= canvasWidth) {
-        if (left > 0) left = 0;
-        if (left + imgWidth < canvasWidth) left = canvasWidth - imgWidth;
+        // Left edge should not go past 0
+        if (left - imgWidth / 2 > 0) left = imgWidth / 2;
+        // Right edge should not be before canvas width
+        if (left + imgWidth / 2 < canvasWidth)
+          left = canvasWidth - imgWidth / 2;
       } else {
-        left = (canvasWidth - imgWidth) / 2;
+        // Image smaller than canvas - center it
+        left = canvasWidth / 2;
       }
 
       // Constrain vertical
       if (imgHeight >= canvasHeight) {
-        if (top > 0) top = 0;
-        if (top + imgHeight < canvasHeight) top = canvasHeight - imgHeight;
+        // Top edge should not go past 0
+        if (top - imgHeight / 2 > 0) top = imgHeight / 2;
+        // Bottom edge should not be before canvas height
+        if (top + imgHeight / 2 < canvasHeight)
+          top = canvasHeight - imgHeight / 2;
       } else {
-        top = (canvasHeight - imgHeight) / 2;
+        // Image smaller than canvas - center it
+        top = canvasHeight / 2;
       }
 
       img.set({ left, top });
@@ -147,8 +170,8 @@ export function ImageEditor({
     if (!canvasRef.current) return;
 
     const canvas = new Canvas(canvasRef.current, {
-      width: 600,
-      height: 600,
+      width: canvasWidth,
+      height: canvasHeight,
       backgroundColor: "#f3f4f6",
     });
 
@@ -170,8 +193,11 @@ export function ImageEditor({
       setBaseScale(scale);
       img.scale(scale);
       img.set({
-        left: (canvas.width! - img.width! * scale) / 2,
-        top: (canvas.height! - img.height! * scale) / 2,
+        // Use center origin for consistent rotation behavior
+        originX: "center",
+        originY: "center",
+        left: canvas.width! / 2,
+        top: canvas.height! / 2,
         // Make image selectable and draggable for pan/zoom
         selectable: true,
         evented: true,
@@ -293,7 +319,13 @@ export function ImageEditor({
       canvas.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialTextOverlays only needed on mount
-  }, [media.originalPath, editedImageUrl, constrainImagePosition]);
+  }, [
+    media.originalPath,
+    editedImageUrl,
+    constrainImagePosition,
+    canvasWidth,
+    canvasHeight,
+  ]);
 
   // Apply zoom when imageZoom changes
   useEffect(() => {

@@ -190,6 +190,7 @@ export const exportApi = {
     projectId: string;
     postId?: string;
     platforms?: string[];
+    platformAspects?: Record<string, { width: number; height: number }>;
     caption?: string;
     mediaIds?: string[];
     editedImages?: Record<string, string>;

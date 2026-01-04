@@ -34,6 +34,7 @@ export function ExportPage() {
   const { isLoading } = useProject(projectId);
   const {
     platforms,
+    platformAspects,
     caption,
     hashtags,
     selectedMediaIds,
@@ -71,6 +72,7 @@ export function ExportPage() {
       const result = await exportApi.prepare({
         projectId,
         platforms: platforms,
+        platformAspects: platformAspects,
         caption: captionWithHashtags,
         mediaIds: selectedMediaIds,
         editedImages: editedImageUrls,

@@ -8,6 +8,17 @@ import type {
   TextOverlay,
 } from "../types";
 
+// Default aspect ratios per platform
+const DEFAULT_PLATFORM_ASPECTS: Record<
+  Platform,
+  { width: number; height: number }
+> = {
+  instagram: { width: 4, height: 5 },
+  threads: { width: 4, height: 5 },
+  twitter: { width: 16, height: 9 },
+  linkedin: { width: 1.91, height: 1 },
+};
+
 export interface EditedImageData {
   dataUrl: string;
   adjustments?: ImageAdjustments;
@@ -25,6 +36,7 @@ interface ComposerState {
   caption: string;
   hashtags: string[];
   platforms: Platform[];
+  platformAspects: Record<Platform, { width: number; height: number }>;
   captionSuggestions: CaptionSuggestion[];
   viralityScore: ViralityScore | null;
   editedImages: Record<string, EditedImageData>; // mediaId -> edited image data
@@ -39,6 +51,10 @@ interface ComposerState {
   addHashtag: (hashtag: string) => void;
   removeHashtag: (hashtag: string) => void;
   togglePlatform: (platform: Platform) => void;
+  setPlatformAspect: (
+    platform: Platform,
+    aspect: { width: number; height: number },
+  ) => void;
   setCaptionSuggestions: (suggestions: CaptionSuggestion[]) => void;
   setViralityScore: (score: ViralityScore | null) => void;
   setEditedImage: (mediaId: string, data: EditedImageData) => void;
@@ -55,6 +71,7 @@ const defaultState = {
   caption: "",
   hashtags: [],
   platforms: ["instagram", "threads", "twitter"] as Platform[],
+  platformAspects: { ...DEFAULT_PLATFORM_ASPECTS },
   captionSuggestions: [],
   viralityScore: null,
   editedImages: {} as Record<string, EditedImageData>,
@@ -131,6 +148,12 @@ export const useComposerStore = create<ComposerState>((set) => ({
       platforms: state.platforms.includes(platform)
         ? state.platforms.filter((p) => p !== platform)
         : [...state.platforms, platform],
+      isDirty: true,
+    })),
+
+  setPlatformAspect: (platform, aspect) =>
+    set((state) => ({
+      platformAspects: { ...state.platformAspects, [platform]: aspect },
       isDirty: true,
     })),
 

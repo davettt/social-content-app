@@ -171,6 +171,7 @@ export function PostComposer() {
     removeGeneratedImage,
     addGeneratedImage,
     setHashtags,
+    setPlatformAspect,
   } = useComposerStore();
 
   const generateCaption = useGenerateCaption();
@@ -855,12 +856,23 @@ export function PostComposer() {
                 <span className="text-xs text-gray-500">Aspect:</span>
                 <select
                   value={platformAspects[previewPlatform]}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newIndex = parseInt(e.target.value, 10);
+                    const selectedOption =
+                      PLATFORM_ASPECT_OPTIONS[previewPlatform][newIndex];
+                    // Update local state for dropdown
                     setPlatformAspects((prev) => ({
                       ...prev,
-                      [previewPlatform]: parseInt(e.target.value, 10),
-                    }))
-                  }
+                      [previewPlatform]: newIndex,
+                    }));
+                    // Sync to store for export
+                    if (selectedOption) {
+                      setPlatformAspect(previewPlatform, {
+                        width: selectedOption.width,
+                        height: selectedOption.height,
+                      });
+                    }
+                  }}
                   className="text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 >
                   {PLATFORM_ASPECT_OPTIONS[previewPlatform].map(
@@ -1217,6 +1229,10 @@ export function PostComposer() {
             editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
             initialAdjustments={editedImages[editingMedia.id]?.adjustments}
             initialTextOverlays={editedImages[editingMedia.id]?.textOverlays}
+            aspectRatio={getPlatformDimensions(
+              previewPlatform,
+              platformAspects[previewPlatform],
+            )}
             onSave={(dataUrl, edits) => {
               setEditedImage(editingMedia.id, {
                 dataUrl,
