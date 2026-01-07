@@ -10,6 +10,7 @@ import projectsRouter from "./src/routes/projects.js";
 import mediaRouter from "./src/routes/media.js";
 import aiRouter from "./src/routes/ai.js";
 import exportRouter from "./src/routes/export.js";
+import editsRouter from "./src/routes/edits.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,6 +64,7 @@ app.use("/api/projects", projectsRouter);
 app.use("/api/media", mediaRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/export", exportRouter);
+app.use("/api/edits", editsRouter);
 
 // Health check
 app.get("/api/health", (req, res) => {

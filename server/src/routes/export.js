@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import archiver from "archiver";
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
+import { spawn } from "child_process";
 import { getProjectDir, readJsonFile, PROJECTS_DIR } from "../utils/storage.js";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
 
@@ -90,6 +91,118 @@ async function resizeImage(inputBuffer, dimensions) {
   }
 }
 
+// Helper function to load video edits from disk
+async function loadVideoEdits(projectDir, mediaId) {
+  try {
+    const editsPath = path.join(
+      projectDir,
+      "media",
+      "edits",
+      `video-${mediaId}.json`,
+    );
+    const data = await fs.readFile(editsPath, "utf-8");
+    return JSON.parse(data);
+  } catch (e) {
+    // No saved edits
+    return null;
+  }
+}
+
+// Helper function to process video with FFmpeg
+async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
+  return new Promise((resolve, reject) => {
+    const args = [];
+
+    // Trim: seek to start position
+    if (edits.trimStart > 0) {
+      args.push("-ss", edits.trimStart.toString());
+    }
+
+    // Input file
+    args.push("-i", sourcePath);
+
+    // Trim: duration (trimEnd - trimStart)
+    if (edits.trimEnd > edits.trimStart) {
+      const duration = edits.trimEnd - edits.trimStart;
+      args.push("-t", duration.toString());
+    }
+
+    // Build video filter for speed change
+    const videoFilters = [];
+    const audioFilters = [];
+
+    if (edits.speed && edits.speed !== 1) {
+      // Video speed: setpts=PTS/speed (inverse relationship)
+      videoFilters.push(`setpts=PTS/${edits.speed}`);
+      // Audio speed: atempo only supports 0.5 to 2.0, chain if needed
+      if (edits.speed >= 0.5 && edits.speed <= 2.0) {
+        audioFilters.push(`atempo=${edits.speed}`);
+      } else if (edits.speed > 2.0) {
+        // Chain atempo filters for > 2x speed
+        audioFilters.push("atempo=2.0");
+        audioFilters.push(`atempo=${edits.speed / 2.0}`);
+      } else if (edits.speed < 0.5) {
+        // Chain atempo filters for < 0.5x speed
+        audioFilters.push("atempo=0.5");
+        audioFilters.push(`atempo=${edits.speed / 0.5}`);
+      }
+    }
+
+    // Apply video filters
+    if (videoFilters.length > 0) {
+      args.push("-vf", videoFilters.join(","));
+    }
+
+    // Handle audio: mute, volume, or speed
+    if (edits.muted) {
+      args.push("-an"); // No audio
+    } else {
+      // Apply volume and speed filters
+      if (edits.volume !== undefined && edits.volume !== 1) {
+        audioFilters.push(`volume=${edits.volume}`);
+      }
+      if (audioFilters.length > 0) {
+        args.push("-af", audioFilters.join(","));
+      }
+    }
+
+    // Output settings
+    args.push("-c:v", "libx264"); // H.264 codec
+    args.push("-preset", "fast"); // Encoding speed
+    args.push("-crf", "23"); // Quality (lower = better, 18-28 is reasonable)
+    if (!edits.muted) {
+      args.push("-c:a", "aac"); // AAC audio codec
+      args.push("-b:a", "128k"); // Audio bitrate
+    }
+    args.push("-y"); // Overwrite output
+    args.push(destPath);
+
+    console.log(`FFmpeg processing: ffmpeg ${args.join(" ")}`);
+
+    const ffmpeg = spawn("ffmpeg", args);
+
+    let stderr = "";
+    ffmpeg.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        console.log(`FFmpeg processed video successfully: ${destPath}`);
+        resolve();
+      } else {
+        console.error(`FFmpeg failed with code ${code}:`, stderr);
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (err) => {
+      console.error("FFmpeg spawn error:", err);
+      reject(err);
+    });
+  });
+}
+
 // POST /api/export/prepare - Prepare export package
 router.post("/prepare", async (req, res, next) => {
   try {
@@ -151,16 +264,43 @@ router.post("/prepare", async (req, res, next) => {
       for (let i = 0; i < mediaFiles.length; i++) {
         const media = mediaFiles[i];
 
-        // Skip videos for now (Sharp doesn't handle video)
+        // Handle videos with FFmpeg
         if (media.type === "video") {
-          // Just copy video files as-is
           try {
             const sourcePath = path.join(PROJECTS_DIR, media.originalPath);
             const destPath = path.join(platformDir, media.filename);
-            await fs.copyFile(sourcePath, destPath);
-            console.log(`Copied video ${media.filename} to ${platformName}`);
+
+            // Check for saved video edits
+            const videoEdits = await loadVideoEdits(projectDir, media.id);
+
+            if (videoEdits) {
+              // Process video with FFmpeg to apply edits
+              console.log(
+                `Processing video ${media.filename} with edits:`,
+                videoEdits,
+              );
+              await processVideoWithFFmpeg(sourcePath, destPath, videoEdits);
+            } else {
+              // No edits - just copy as-is
+              await fs.copyFile(sourcePath, destPath);
+              console.log(`Copied video ${media.filename} to ${platformName}`);
+            }
           } catch (e) {
-            console.warn(`Could not copy video ${media.filename}:`, e.message);
+            console.warn(
+              `Could not process video ${media.filename}:`,
+              e.message,
+            );
+            // Fallback: try to copy original
+            try {
+              const sourcePath = path.join(PROJECTS_DIR, media.originalPath);
+              const destPath = path.join(platformDir, media.filename);
+              await fs.copyFile(sourcePath, destPath);
+              console.log(
+                `Fallback: copied original video ${media.filename} to ${platformName}`,
+              );
+            } catch (copyErr) {
+              console.warn(`Fallback copy also failed:`, copyErr.message);
+            }
           }
           continue;
         }

@@ -48,11 +48,42 @@ const upload = multer({
       "video/mp4",
       "video/quicktime",
       "video/webm",
+      "video/x-m4v",
+      "video/avi",
+      "video/x-msvideo",
+      "application/octet-stream", // Sometimes used for unknown file types
     ];
+
+    // Also check extension as fallback for macOS drag-drop issues
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedVideoExts = [".mp4", ".mov", ".webm", ".m4v", ".avi"];
+    const allowedImageExts = [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+      ".heic",
+      ".heif",
+    ];
+
+    console.log(
+      `[File Filter] File: ${file.originalname}, Mime: ${file.mimetype}, Ext: ${ext}`,
+    );
+
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
+    } else if (
+      allowedVideoExts.includes(ext) ||
+      allowedImageExts.includes(ext)
+    ) {
+      // Allow based on extension if mimetype is not recognized
+      console.log(`[File Filter] Allowing based on extension: ${ext}`);
+      cb(null, true);
     } else {
-      cb(new ValidationError(`Unsupported file type: ${file.mimetype}`));
+      cb(
+        new ValidationError(`Unsupported file type: ${file.mimetype} (${ext})`),
+      );
     }
   },
 });
@@ -140,8 +171,24 @@ router.post(
 
       for (const file of files) {
         const id = path.basename(file.filename, path.extname(file.filename));
-        const isVideo = file.mimetype.startsWith("video/");
+        const ext = path.extname(file.originalname).toLowerCase();
+
+        // Log upload details for debugging
+        console.log(`[Media Upload] File: ${file.originalname}`);
+        console.log(`[Media Upload] Mimetype: ${file.mimetype}`);
+        console.log(`[Media Upload] Extension: ${ext}`);
+
+        // Check both mimetype AND extension for video detection
+        // (macOS drag-drop can sometimes report wrong mimetype)
+        const videoExtensions = [".mp4", ".mov", ".webm", ".m4v", ".avi"];
+        const isVideoByMime = file.mimetype.startsWith("video/");
+        const isVideoByExt = videoExtensions.includes(ext);
+        const isVideo = isVideoByMime || isVideoByExt;
         const type = isVideo ? "video" : "image";
+
+        console.log(
+          `[Media Upload] Detected type: ${type} (byMime: ${isVideoByMime}, byExt: ${isVideoByExt})`,
+        );
 
         // Extract metadata
         const metadata = await extractMetadata(file.path, type);
