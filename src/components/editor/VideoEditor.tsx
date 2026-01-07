@@ -1,18 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "../common/Button";
+import { editsApi } from "../../services/api";
 import type { Media } from "../../types";
 
-interface VideoEditorProps {
-  media: Media;
-  onClose: () => void;
-}
-
-interface VideoEdits {
+export interface VideoEdits {
   trimStart: number;
   trimEnd: number;
   speed: number;
   muted: boolean;
   volume: number;
+}
+
+interface VideoEditorProps {
+  media: Media;
+  projectId: string;
+  initialEdits?: VideoEdits;
+  onSave?: (edits: VideoEdits) => void;
+  onClose: () => void;
 }
 
 const SPEED_OPTIONS = [
@@ -22,19 +26,55 @@ const SPEED_OPTIONS = [
   { label: "2x", value: 2 },
 ];
 
-export function VideoEditor({ media, onClose }: VideoEditorProps) {
+export function VideoEditor({
+  media,
+  projectId,
+  initialEdits,
+  onSave,
+  onClose,
+}: VideoEditorProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">(
+    "idle",
+  );
+  const [editsLoaded, setEditsLoaded] = useState(false);
 
   const [edits, setEdits] = useState<VideoEdits>({
-    trimStart: 0,
-    trimEnd: 0,
-    speed: 1,
-    muted: false,
-    volume: 1,
+    trimStart: initialEdits?.trimStart ?? 0,
+    trimEnd: initialEdits?.trimEnd ?? 0,
+    speed: initialEdits?.speed ?? 1,
+    muted: initialEdits?.muted ?? false,
+    volume: initialEdits?.volume ?? 1,
   });
+
+  // Load saved edits from disk on mount
+  useEffect(() => {
+    if (editsLoaded || initialEdits) return;
+
+    const loadSavedEdits = async () => {
+      try {
+        const savedEdits = await editsApi.loadVideoEdit(projectId, media.id);
+        if (savedEdits.hasEdits) {
+          setEdits({
+            trimStart: savedEdits.trimStart ?? 0,
+            trimEnd: savedEdits.trimEnd ?? duration,
+            speed: savedEdits.speed ?? 1,
+            muted: savedEdits.muted ?? false,
+            volume: savedEdits.volume ?? 1,
+          });
+        }
+      } catch {
+        // No saved edits
+      }
+      setEditsLoaded(true);
+    };
+
+    loadSavedEdits();
+  }, [projectId, media.id, initialEdits, editsLoaded, duration]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -42,7 +82,10 @@ export function VideoEditor({ media, onClose }: VideoEditorProps) {
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
-      setEdits((prev) => ({ ...prev, trimEnd: video.duration }));
+      // Only set trimEnd if not already set from saved edits
+      if (edits.trimEnd === 0) {
+        setEdits((prev) => ({ ...prev, trimEnd: video.duration }));
+      }
     };
 
     const handleTimeUpdate = () => {
@@ -104,6 +147,38 @@ export function VideoEditor({ media, onClose }: VideoEditorProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Reset to default values
+  const handleReset = () => {
+    setEdits({
+      trimStart: 0,
+      trimEnd: duration,
+      speed: 1,
+      muted: false,
+      volume: 1,
+    });
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  };
+
+  // Save to disk and close
+  const handleSaveAndClose = async () => {
+    setIsSaving(true);
+    setSaveStatus("idle");
+
+    try {
+      await editsApi.saveVideoEdit(projectId, media.id, edits);
+      onSave?.(edits);
+      setSaveStatus("saved");
+      // Brief delay to show success, then close
+      setTimeout(() => onClose(), 500);
+    } catch (error) {
+      console.error("Failed to save video edits:", error);
+      setSaveStatus("error");
+      setIsSaving(false);
+    }
+  };
+
   const trimDuration = edits.trimEnd - edits.trimStart;
 
   return (
@@ -112,13 +187,27 @@ export function VideoEditor({ media, onClose }: VideoEditorProps) {
       <div className="flex items-center justify-between px-6 py-4 bg-gray-800 border-b border-gray-700">
         <div>
           <h2 className="text-lg font-semibold text-white">Edit Video</h2>
-          <p className="text-xs text-amber-400">
-            Preview only — video edits not yet saved
-          </p>
+          {saveStatus === "saved" && (
+            <p className="text-xs text-green-400">Edits saved to disk</p>
+          )}
+          {saveStatus === "error" && (
+            <p className="text-xs text-red-400">Failed to save edits</p>
+          )}
+          {saveStatus === "idle" && (
+            <p className="text-xs text-gray-400">
+              Edits will be applied on export
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={onClose}>
-            Close
+            Cancel
+          </Button>
+          <Button variant="secondary" onClick={handleReset}>
+            Reset
+          </Button>
+          <Button onClick={handleSaveAndClose} isLoading={isSaving}>
+            Save & Close
           </Button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import { ImageEditor } from "../editor/ImageEditor";
 import { VideoEditor } from "../editor/VideoEditor";
 import { TEMPLATES } from "../templates/templateData";
 import { TemplateRenderer } from "../templates/TemplateRenderer";
+import { editsApi } from "../../services/api";
 import type { Platform, Media, Template } from "../../types";
 
 const PLATFORM_LIMITS: Record<Platform, number> = {
@@ -296,6 +297,74 @@ export function PostComposer() {
       }
     }
   }, [searchParams, templateApplied, setHashtags, togglePlatform]);
+
+  // Load saved edits from disk for all media (runs once when media loads)
+  useEffect(() => {
+    if (!projectId || !allMedia || allMedia.length === 0) return;
+
+    const loadSavedEdits = async () => {
+      const currentEdits = useComposerStore.getState().editedImages;
+
+      for (const media of allMedia) {
+        // Skip if we already have edits in memory for this media
+        if (currentEdits[media.id]) continue;
+
+        // Skip videos for now
+        if (media.type === "video") continue;
+
+        try {
+          const savedEdits = await editsApi.loadImageEdit(projectId, media.id);
+          if (savedEdits.hasEdits && savedEdits.dataUrl) {
+            // Map API response to internal types with proper defaults
+            const adjustments = savedEdits.adjustments
+              ? {
+                  brightness: savedEdits.adjustments.brightness ?? 0,
+                  contrast: savedEdits.adjustments.contrast ?? 0,
+                  saturation: savedEdits.adjustments.saturation ?? 0,
+                  rotation: savedEdits.adjustments.rotation,
+                  fineRotation: savedEdits.adjustments.fineRotation,
+                }
+              : undefined;
+
+            const textOverlays = savedEdits.textOverlays?.map((overlay) => ({
+              id: overlay.id,
+              text: overlay.text,
+              x: overlay.x,
+              y: overlay.y,
+              fontSize: overlay.fontSize,
+              fontFamily: overlay.fontFamily,
+              color: overlay.color,
+              opacity: overlay.opacity,
+              rotation: 0, // Default rotation
+              textAlign: overlay.textAlign as "left" | "center" | "right",
+              shadow: overlay.shadow,
+              position: overlay.position as
+                | "top-left"
+                | "top-center"
+                | "top-right"
+                | "middle-left"
+                | "middle-center"
+                | "middle-right"
+                | "bottom-left"
+                | "bottom-center"
+                | "bottom-right"
+                | undefined,
+            }));
+
+            setEditedImage(media.id, {
+              dataUrl: savedEdits.dataUrl,
+              adjustments,
+              textOverlays,
+            });
+          }
+        } catch {
+          // Silently ignore errors - no saved edits for this media
+        }
+      }
+    };
+
+    loadSavedEdits();
+  }, [projectId, allMedia, setEditedImage]);
 
   // Clear template when navigating away
   const handleClearTemplate = () => {
@@ -1220,11 +1289,13 @@ export function PostComposer() {
         (editingMedia.type === "video" ? (
           <VideoEditor
             media={editingMedia}
+            projectId={projectId!}
             onClose={() => setEditingMedia(null)}
           />
         ) : (
           <ImageEditor
             media={editingMedia}
+            projectId={projectId!}
             brandKit={project?.brandKit}
             editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
             initialAdjustments={editedImages[editingMedia.id]?.adjustments}

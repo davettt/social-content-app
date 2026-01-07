@@ -225,9 +225,10 @@ export function MediaLibrary() {
       </Modal>
 
       {/* Collage Builder */}
-      {showCollageBuilder && media && (
+      {showCollageBuilder && media && projectId && (
         <CollageBuilder
           availableMedia={media}
+          projectId={projectId}
           brandKit={project?.brandKit}
           onSave={(collageDataUrl) => {
             setCollageResult(collageDataUrl);

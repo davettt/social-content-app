@@ -215,3 +215,144 @@ export const exportApi = {
       createdAt: string;
     }>(`${API_BASE}/export/${exportId}/status`),
 };
+
+// Edits API - for persisting media edits
+export const editsApi = {
+  // Image edits
+  saveImageEdit: (
+    projectId: string,
+    mediaId: string,
+    data: {
+      dataUrl: string;
+      adjustments?: {
+        brightness?: number;
+        contrast?: number;
+        saturation?: number;
+        rotation?: number;
+        fineRotation?: number;
+      };
+      textOverlays?: Array<{
+        id: string;
+        text: string;
+        x: number;
+        y: number;
+        fontSize: number;
+        fontFamily: string;
+        fontWeight: string;
+        color: string;
+        textAlign: string;
+        shadow: boolean;
+        opacity: number;
+        position: string;
+      }>;
+    },
+  ) =>
+    fetchJson<{
+      success: boolean;
+      mediaId: string;
+      processedPath: string;
+      editedAt: string;
+    }>(`${API_BASE}/edits/${projectId}/image/${mediaId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  loadImageEdit: (projectId: string, mediaId: string) =>
+    fetchJson<{
+      hasEdits: boolean;
+      dataUrl?: string;
+      adjustments?: {
+        brightness?: number;
+        contrast?: number;
+        saturation?: number;
+        rotation?: number;
+        fineRotation?: number;
+      };
+      textOverlays?: Array<{
+        id: string;
+        text: string;
+        x: number;
+        y: number;
+        fontSize: number;
+        fontFamily: string;
+        fontWeight: string;
+        color: string;
+        textAlign: string;
+        shadow: boolean;
+        opacity: number;
+        position: string;
+      }>;
+      editedAt?: string;
+    }>(`${API_BASE}/edits/${projectId}/image/${mediaId}`),
+
+  deleteImageEdit: (projectId: string, mediaId: string) =>
+    fetchJson<void>(`${API_BASE}/edits/${projectId}/image/${mediaId}`, {
+      method: "DELETE",
+    }),
+
+  // Video edits
+  saveVideoEdit: (
+    projectId: string,
+    mediaId: string,
+    data: {
+      trimStart: number;
+      trimEnd: number;
+      speed: number;
+      muted: boolean;
+      volume: number;
+    },
+  ) =>
+    fetchJson<{
+      success: boolean;
+      mediaId: string;
+      trimStart: number;
+      trimEnd: number;
+      speed: number;
+      muted: boolean;
+      volume: number;
+      editedAt: string;
+    }>(`${API_BASE}/edits/${projectId}/video/${mediaId}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  loadVideoEdit: (projectId: string, mediaId: string) =>
+    fetchJson<{
+      hasEdits: boolean;
+      trimStart?: number;
+      trimEnd?: number;
+      speed?: number;
+      muted?: boolean;
+      volume?: number;
+      editedAt?: string;
+    }>(`${API_BASE}/edits/${projectId}/video/${mediaId}`),
+
+  deleteVideoEdit: (projectId: string, mediaId: string) =>
+    fetchJson<void>(`${API_BASE}/edits/${projectId}/video/${mediaId}`, {
+      method: "DELETE",
+    }),
+
+  // Collage
+  saveCollage: (
+    projectId: string,
+    data: {
+      dataUrl: string;
+      layout?: string;
+      config?: Record<string, unknown>;
+    },
+  ) =>
+    fetchJson<{
+      success: boolean;
+      media: {
+        id: string;
+        projectId: string;
+        type: string;
+        filename: string;
+        originalPath: string;
+        thumbnailPath: string;
+      };
+    }>(`${API_BASE}/edits/${projectId}/collage`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};

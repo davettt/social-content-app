@@ -4,6 +4,7 @@ import {
   AlignmentPicker,
   getPositionCoordinates,
 } from "../common/AlignmentPicker";
+import { editsApi } from "../../services/api";
 import type { Media, BrandKit, TextPosition } from "../../types";
 import { SAFE_ZONE_MARGIN } from "../../types/post";
 
@@ -25,8 +26,9 @@ interface SlotAdjustment {
 
 interface CollageBuilderProps {
   availableMedia: Media[];
+  projectId: string;
   brandKit?: BrandKit;
-  onSave: (collageDataUrl: string) => void;
+  onSave: (collageDataUrl: string, savedMedia?: Media) => void;
   onClose: () => void;
 }
 
@@ -54,6 +56,7 @@ const CANVAS_SIZE = 1080;
 
 export function CollageBuilder({
   availableMedia,
+  projectId,
   brandKit,
   onSave,
   onClose,
@@ -573,9 +576,44 @@ export function CollageBuilder({
       const exportCanvas = document.createElement("canvas");
       await renderToCanvas(exportCanvas, CANVAS_SIZE);
       const dataUrl = exportCanvas.toDataURL("image/png");
-      onSave(dataUrl);
+
+      // Save to server as a new media item
+      const result = await editsApi.saveCollage(projectId, {
+        dataUrl,
+        layout: selectedLayout,
+        config: {
+          spacing,
+          borderRadius,
+          backgroundColor,
+          selectedImages,
+          textOverlay: textOverlay.text ? textOverlay : undefined,
+        },
+      });
+
+      // Call onSave with dataUrl and the new media item info
+      const savedMedia: Media = {
+        id: result.media.id,
+        projectId: result.media.projectId,
+        type: result.media.type as "image" | "video",
+        filename: result.media.filename,
+        originalPath: result.media.originalPath,
+        thumbnailPath: result.media.thumbnailPath,
+        metadata: {
+          width: CANVAS_SIZE,
+          height: CANVAS_SIZE,
+        },
+        userMetadata: {
+          showDate: false,
+          showTime: false,
+          showLocation: false,
+          customCaption: "",
+        },
+        uploadedAt: new Date().toISOString(),
+      };
+
+      onSave(dataUrl, savedMedia);
     } catch (error) {
-      console.error("Failed to render collage:", error);
+      console.error("Failed to save collage:", error);
     } finally {
       setIsRendering(false);
     }

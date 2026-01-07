@@ -22,9 +22,11 @@ import type {
   TextPosition,
 } from "../../types";
 import { SAFE_ZONE_MARGIN } from "../../types/post";
+import { editsApi } from "../../services/api";
 
 interface ImageEditorProps {
   media: Media;
+  projectId: string;
   brandKit?: BrandKit;
   /** URL to load from (use for previously edited images) */
   editedImageUrl?: string;
@@ -77,6 +79,7 @@ const CANVAS_BASE_SIZE = 600;
 
 export function ImageEditor({
   media,
+  projectId,
   brandKit,
   editedImageUrl,
   initialAdjustments,
@@ -88,6 +91,10 @@ export function ImageEditor({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const imageRef = useRef<FabricImage | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">(
+    "idle",
+  );
 
   // Calculate canvas dimensions based on aspect ratio
   const ratio = aspectRatio.width / aspectRatio.height;
@@ -757,10 +764,10 @@ export function ImageEditor({
     }
   };
 
-  // Save
-  const handleSave = () => {
+  // Generate canvas data URL
+  const getCanvasDataUrl = useCallback(() => {
     const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return null;
 
     // Deselect all to remove selection handles from export
     canvas.discardActiveObject();
@@ -779,7 +786,64 @@ export function ImageEditor({
     safeZoneLinesRef.current.forEach((line) => line.set("visible", true));
     canvas.renderAll();
 
-    onSave(dataUrl, { adjustments, textOverlays });
+    return dataUrl;
+  }, []);
+
+  // Reset to original image
+  const handleReset = () => {
+    setAdjustments({
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      rotation: 0,
+      fineRotation: 0,
+    });
+    setTextOverlays([]);
+    setSelectedTextId(null);
+  };
+
+  // Save to disk and close
+  const handleSaveAndClose = async () => {
+    const dataUrl = getCanvasDataUrl();
+    if (!dataUrl) return;
+
+    setIsSaving(true);
+    setSaveStatus("idle");
+
+    try {
+      // Map textOverlays to include fontWeight for API compatibility
+      const apiTextOverlays = textOverlays.map((overlay) => ({
+        id: overlay.id,
+        text: overlay.text,
+        x: overlay.x,
+        y: overlay.y,
+        fontSize: overlay.fontSize,
+        fontFamily: overlay.fontFamily,
+        fontWeight: "normal", // Default since internal type doesn't have this
+        color: overlay.color,
+        textAlign: overlay.textAlign,
+        shadow: overlay.shadow ?? false,
+        opacity: overlay.opacity,
+        position: overlay.position ?? "middle-center",
+      }));
+
+      await editsApi.saveImageEdit(projectId, media.id, {
+        dataUrl,
+        adjustments,
+        textOverlays: apiTextOverlays,
+      });
+
+      // Also update memory store
+      onSave(dataUrl, { adjustments, textOverlays });
+
+      setSaveStatus("saved");
+      // Brief delay to show success, then close
+      setTimeout(() => onClose(), 500);
+    } catch (error) {
+      console.error("Failed to save edits:", error);
+      setSaveStatus("error");
+      setIsSaving(false);
+    }
   };
 
   const selectedText = textOverlays.find((t) => t.id === selectedTextId);
@@ -788,12 +852,25 @@ export function ImageEditor({
     <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 bg-gray-800 border-b border-gray-700">
-        <h2 className="text-lg font-semibold text-white">Edit Image</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-white">Edit Image</h2>
+          {saveStatus === "saved" && (
+            <p className="text-xs text-green-400">Edits saved to disk</p>
+          )}
+          {saveStatus === "error" && (
+            <p className="text-xs text-red-400">Failed to save edits</p>
+          )}
+        </div>
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button variant="secondary" onClick={handleReset}>
+            Reset
+          </Button>
+          <Button onClick={handleSaveAndClose} isLoading={isSaving}>
+            Save & Close
+          </Button>
         </div>
       </div>
 
