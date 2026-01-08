@@ -108,8 +108,278 @@ async function loadVideoEdits(projectDir, mediaId) {
   }
 }
 
+// Escape text for FFmpeg drawtext filter
+function escapeFFmpegText(text) {
+  return text
+    .replace(/\\/g, "\\\\\\\\") // Escape backslashes
+    .replace(/'/g, "\\'") // Escape single quotes
+    .replace(/:/g, "\\:") // Escape colons
+    .replace(/\[/g, "\\[") // Escape brackets
+    .replace(/\]/g, "\\]");
+}
+
+// Wrap text into multiple lines based on max width
+function wrapText(text, maxCharsPerLine) {
+  if (!text || maxCharsPerLine <= 0) return [text || ""];
+
+  const words = text.split(/\s+/);
+  const lines = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    if (!currentLine) {
+      currentLine = word;
+    } else if ((currentLine + " " + word).length <= maxCharsPerLine) {
+      currentLine += " " + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.length > 0 ? lines : [""];
+}
+
+// Get FFmpeg position expressions for text position presets
+function getFFmpegPositionExpression(position, textAlign) {
+  const margin = 0.05; // 5% margin
+
+  // X position based on horizontal alignment
+  let x;
+  switch (textAlign || "center") {
+    case "left":
+      x = `w*${margin}`;
+      break;
+    case "right":
+      x = `w*${1 - margin}-tw`;
+      break;
+    case "center":
+    default:
+      x = "(w-tw)/2";
+      break;
+  }
+
+  // Y position based on position preset
+  let y;
+  if (!position || position.includes("middle")) {
+    y = "(h-th)/2";
+  } else if (position.includes("top")) {
+    y = `h*${margin}`;
+  } else if (position.includes("bottom")) {
+    y = `h*${1 - margin}-th`;
+  } else {
+    y = "(h-th)/2";
+  }
+
+  // Adjust X based on position horizontal component
+  if (position) {
+    if (position.includes("left")) {
+      x = `w*${margin}`;
+    } else if (position.includes("right")) {
+      x = `w*${1 - margin}-tw`;
+    } else if (position.includes("center")) {
+      x = "(w-tw)/2";
+    }
+  }
+
+  return { x, y };
+}
+
+// Editor preview base size - font sizes are defined relative to this
+const EDITOR_PREVIEW_BASE_SIZE = 400;
+
+// Get video dimensions using ffprobe
+async function getVideoDimensions(sourcePath) {
+  return new Promise((resolve, reject) => {
+    const ffprobe = spawn("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height",
+      "-of",
+      "json",
+      sourcePath,
+    ]);
+
+    let stdout = "";
+    let stderr = "";
+
+    ffprobe.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ffprobe.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ffprobe.on("close", (code) => {
+      if (code === 0) {
+        try {
+          const info = JSON.parse(stdout);
+          const stream = info.streams?.[0];
+          if (stream && stream.width && stream.height) {
+            resolve({ width: stream.width, height: stream.height });
+          } else {
+            resolve(null);
+          }
+        } catch (e) {
+          console.warn("Failed to parse ffprobe output:", e.message);
+          resolve(null);
+        }
+      } else {
+        console.warn("ffprobe failed:", stderr);
+        resolve(null);
+      }
+    });
+
+    ffprobe.on("error", (err) => {
+      console.warn("ffprobe spawn error:", err.message);
+      resolve(null);
+    });
+  });
+}
+
+// Build FFmpeg drawtext filters for a text overlay (returns array for multi-line)
+function buildDrawtextFilters(
+  overlay,
+  trimDuration,
+  fontScaleFactor = 1,
+  aspectRatio = null,
+) {
+  const { x, y } = getFFmpegPositionExpression(
+    overlay.position,
+    overlay.textAlign,
+  );
+
+  // Calculate enable expression based on timing preset
+  let enable;
+  switch (overlay.timing) {
+    case "full":
+      enable = "1";
+      break;
+    case "first-3s":
+      enable = "between(t,0,3)";
+      break;
+    case "last-3s":
+      enable = `between(t,${Math.max(0, trimDuration - 3)},${trimDuration})`;
+      break;
+    case "first-5s":
+      enable = "between(t,0,5)";
+      break;
+    case "last-5s":
+      enable = `between(t,${Math.max(0, trimDuration - 5)},${trimDuration})`;
+      break;
+    default:
+      enable = "1";
+  }
+
+  // Scale font size based on actual video dimensions vs editor preview size
+  const baseFontSize = overlay.fontSize || 48;
+  const scaledFontSize = Math.round(baseFontSize * fontScaleFactor);
+
+  // Calculate max characters per line based on PREVIEW dimensions (not export dimensions)
+  // This ensures consistent wrapping between editor preview and export
+  // The editor preview uses a base size of 400px, adjusted for aspect ratio
+  const ar = aspectRatio ? aspectRatio.width / aspectRatio.height : 1;
+  const previewWidth =
+    ar >= 1 ? EDITOR_PREVIEW_BASE_SIZE : EDITOR_PREVIEW_BASE_SIZE * ar;
+
+  // Calculate wrapping based on preview dimensions with the base font size
+  // Use 0.6 as char width estimate (more conservative)
+  const charWidthInPreview = baseFontSize * 0.6;
+  const maxTextWidthInPreview = previewWidth * 0.9; // 90% of preview width
+  const maxCharsPerLine = Math.max(
+    8,
+    Math.floor(maxTextWidthInPreview / charWidthInPreview),
+  );
+
+  // Wrap text into lines
+  const lines = wrapText(overlay.text || "", maxCharsPerLine);
+  const lineHeight = scaledFontSize * 1.3; // 130% line height
+
+  // Calculate total text block height for vertical positioning
+  const totalHeight = lines.length * lineHeight;
+
+  // Build shadow options string
+  let shadowOpts = "";
+  if (overlay.shadow) {
+    const shadowOffset = Math.max(1, Math.round(2 * fontScaleFactor));
+    shadowOpts = `:shadowcolor=black@0.7:shadowx=${shadowOffset}:shadowy=${shadowOffset}`;
+  }
+
+  // Generate a filter for each line
+  const filters = [];
+  for (let i = 0; i < lines.length; i++) {
+    const escapedText = escapeFFmpegText(lines[i]);
+    const lineOffset = i * lineHeight;
+
+    // Adjust y position for each line based on vertical alignment
+    let yExpr;
+    if (overlay.position && overlay.position.includes("top")) {
+      // Top: first line at margin, subsequent lines below
+      yExpr = `h*0.05+${lineOffset}`;
+    } else if (overlay.position && overlay.position.includes("bottom")) {
+      // Bottom: last line at margin, stack upward
+      const bottomOffset = (lines.length - 1 - i) * lineHeight;
+      yExpr = `h*0.95-th-${bottomOffset}`;
+    } else {
+      // Middle: center the block, offset each line
+      const blockStartOffset = -totalHeight / 2 + lineHeight / 2;
+      yExpr = `(h-th)/2+${blockStartOffset + lineOffset}`;
+    }
+
+    let filter = `drawtext=text='${escapedText}'`;
+    filter += `:fontsize=${scaledFontSize}`;
+    filter += `:fontcolor=${overlay.color || "white"}`;
+    filter += `:x=${x}`;
+    filter += `:y=${yExpr}`;
+    filter += `:enable='${enable}'`;
+    filter += shadowOpts;
+
+    filters.push(filter);
+  }
+
+  return filters;
+}
+
 // Helper function to process video with FFmpeg
 async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
+  // Get video dimensions to calculate font scale factor
+  let fontScaleFactor = 1;
+  const videoDims = await getVideoDimensions(sourcePath);
+  if (videoDims) {
+    // Calculate the effective height after aspect ratio crop
+    let effectiveHeight = videoDims.height;
+    if (
+      edits.aspectRatio &&
+      edits.aspectRatio.width &&
+      edits.aspectRatio.height
+    ) {
+      const targetAR = edits.aspectRatio.width / edits.aspectRatio.height;
+      const videoAR = videoDims.width / videoDims.height;
+
+      if (videoAR > targetAR) {
+        // Video is wider than target - height stays the same after crop
+        effectiveHeight = videoDims.height;
+      } else {
+        // Video is taller than target - width stays, height is cropped
+        effectiveHeight = Math.round(videoDims.width / targetAR);
+      }
+    }
+
+    // Scale font based on video height relative to editor preview size
+    fontScaleFactor = effectiveHeight / EDITOR_PREVIEW_BASE_SIZE;
+    console.log(
+      `Font scale factor: ${fontScaleFactor} (video height: ${effectiveHeight}, preview base: ${EDITOR_PREVIEW_BASE_SIZE})`,
+    );
+  }
+
   return new Promise((resolve, reject) => {
     const args = [];
 
@@ -121,15 +391,36 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
     // Input file
     args.push("-i", sourcePath);
 
+    // Calculate trim duration
+    const trimDuration =
+      edits.trimEnd > edits.trimStart
+        ? edits.trimEnd - edits.trimStart
+        : Infinity;
+
     // Trim: duration (trimEnd - trimStart)
     if (edits.trimEnd > edits.trimStart) {
-      const duration = edits.trimEnd - edits.trimStart;
-      args.push("-t", duration.toString());
+      args.push("-t", trimDuration.toString());
     }
 
-    // Build video filter for speed change
+    // Build video filter for crop, speed change and text overlays
     const videoFilters = [];
     const audioFilters = [];
+
+    // Add aspect ratio crop filter FIRST (before text overlays)
+    // Text overlays are positioned relative to the cropped video
+    if (
+      edits.aspectRatio &&
+      edits.aspectRatio.width &&
+      edits.aspectRatio.height
+    ) {
+      const ar = edits.aspectRatio.width / edits.aspectRatio.height;
+      // Center crop to target aspect ratio
+      // crop=out_w:out_h:x:y
+      // If video is wider than target: crop width, keep height
+      // If video is taller than target: keep width, crop height
+      const cropFilter = `crop='if(gt(iw/ih,${ar}),ih*${ar},iw)':'if(gt(iw/ih,${ar}),ih,iw/${ar})'`;
+      videoFilters.push(cropFilter);
+    }
 
     if (edits.speed && edits.speed !== 1) {
       // Video speed: setpts=PTS/speed (inverse relationship)
@@ -145,6 +436,27 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
         // Chain atempo filters for < 0.5x speed
         audioFilters.push("atempo=0.5");
         audioFilters.push(`atempo=${edits.speed / 0.5}`);
+      }
+    }
+
+    // Add text overlay filters (after crop, so text is positioned on cropped video)
+    if (edits.textOverlays && edits.textOverlays.length > 0) {
+      // Adjust duration for speed changes
+      const adjustedDuration =
+        edits.speed && edits.speed !== 1
+          ? trimDuration / edits.speed
+          : trimDuration;
+
+      for (const overlay of edits.textOverlays) {
+        if (overlay.text && overlay.text.trim()) {
+          const drawtextFilters = buildDrawtextFilters(
+            overlay,
+            adjustedDuration,
+            fontScaleFactor,
+            edits.aspectRatio,
+          );
+          videoFilters.push(...drawtextFilters);
+        }
       }
     }
 
@@ -271,17 +583,38 @@ router.post("/prepare", async (req, res, next) => {
             const destPath = path.join(platformDir, media.filename);
 
             // Check for saved video edits
-            const videoEdits = await loadVideoEdits(projectDir, media.id);
+            const savedEdits = await loadVideoEdits(projectDir, media.id);
 
-            if (videoEdits) {
-              // Process video with FFmpeg to apply edits
+            // Always use platform-specific aspect ratio for export
+            // Override any saved aspect ratio with the platform's aspect ratio
+            const videoEdits = {
+              trimStart: savedEdits?.trimStart ?? 0,
+              trimEnd: savedEdits?.trimEnd ?? 0,
+              speed: savedEdits?.speed ?? 1,
+              muted: savedEdits?.muted ?? false,
+              volume: savedEdits?.volume ?? 1,
+              textOverlays: savedEdits?.textOverlays ?? [],
+              aspectRatio: aspectRatio, // Use platform-specific aspect ratio
+            };
+
+            // Check if we need to process (has edits or needs aspect ratio crop)
+            const needsProcessing =
+              videoEdits.trimStart > 0 ||
+              videoEdits.trimEnd > 0 ||
+              videoEdits.speed !== 1 ||
+              videoEdits.muted ||
+              videoEdits.volume !== 1 ||
+              videoEdits.textOverlays.length > 0 ||
+              aspectRatio;
+
+            if (needsProcessing) {
+              // Process video with FFmpeg to apply edits and platform aspect ratio
               console.log(
-                `Processing video ${media.filename} with edits:`,
-                videoEdits,
+                `Processing video ${media.filename} for ${platformName} with aspect ratio ${aspectRatio.width}:${aspectRatio.height}`,
               );
               await processVideoWithFFmpeg(sourcePath, destPath, videoEdits);
             } else {
-              // No edits - just copy as-is
+              // No edits needed - just copy as-is
               await fs.copyFile(sourcePath, destPath);
               console.log(`Copied video ${media.filename} to ${platformName}`);
             }

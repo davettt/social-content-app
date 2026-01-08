@@ -124,6 +124,19 @@ export interface TextOverlay {
   position?: TextPosition;
 }
 
+// Timing preset for video text overlays
+export type VideoTextTiming =
+  | "full"
+  | "first-3s"
+  | "last-3s"
+  | "first-5s"
+  | "last-5s";
+
+// Video-specific text overlay (extends base TextOverlay with timing)
+export interface VideoTextOverlay extends TextOverlay {
+  timing: VideoTextTiming;
+}
+
 export interface CaptionSuggestion {
   text: string;
   length: "short" | "medium" | "long";

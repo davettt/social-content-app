@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "../common/Button";
+import { AlignmentPicker } from "../common/AlignmentPicker";
 import { editsApi } from "../../services/api";
-import type { Media } from "../../types";
+import type { Media, VideoTextOverlay, TextPosition } from "../../types";
+import { VideoTextPreview, TIMING_OPTIONS } from "./VideoTextPreview";
+import type { VideoTextTiming } from "../../types";
 
 export interface VideoEdits {
   trimStart: number;
@@ -9,15 +12,44 @@ export interface VideoEdits {
   speed: number;
   muted: boolean;
   volume: number;
+  textOverlays?: VideoTextOverlay[];
+  /** Target aspect ratio for cropping (width/height) */
+  aspectRatio?: { width: number; height: number };
 }
+
+// Font options (subset of ImageEditor fonts)
+const FONT_OPTIONS = [
+  { label: "Inter", value: "Inter, sans-serif" },
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Impact", value: "Impact, sans-serif" },
+  { label: "Courier", value: "Courier New, monospace" },
+];
+
+// Color presets
+const COLOR_PRESETS = [
+  "#FFFFFF",
+  "#000000",
+  "#FF0000",
+  "#00FF00",
+  "#0000FF",
+  "#FFFF00",
+  "#FF00FF",
+  "#00FFFF",
+];
 
 interface VideoEditorProps {
   media: Media;
   projectId: string;
   initialEdits?: VideoEdits;
+  /** Target aspect ratio for the video (e.g., 4:5 for Instagram portrait) */
+  aspectRatio?: { width: number; height: number; label?: string };
   onSave?: (edits: VideoEdits) => void;
   onClose: () => void;
 }
+
+// Base size for the cropped video preview
+const VIDEO_PREVIEW_BASE_SIZE = 400;
 
 const SPEED_OPTIONS = [
   { label: "0.5x", value: 0.5 },
@@ -30,10 +62,12 @@ export function VideoEditor({
   media,
   projectId,
   initialEdits,
+  aspectRatio = { width: 1, height: 1 },
   onSave,
   onClose,
 }: VideoEditorProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,6 +76,23 @@ export function VideoEditor({
     "idle",
   );
   const [editsLoaded, setEditsLoaded] = useState(false);
+
+  // Calculate cropped preview dimensions based on aspect ratio
+  const targetRatio = aspectRatio.width / aspectRatio.height;
+  const croppedWidth =
+    targetRatio >= 1
+      ? VIDEO_PREVIEW_BASE_SIZE
+      : Math.round(VIDEO_PREVIEW_BASE_SIZE * targetRatio);
+  const croppedHeight =
+    targetRatio >= 1
+      ? Math.round(VIDEO_PREVIEW_BASE_SIZE / targetRatio)
+      : VIDEO_PREVIEW_BASE_SIZE;
+
+  // Text overlay state
+  const [textOverlays, setTextOverlays] = useState<VideoTextOverlay[]>(
+    initialEdits?.textOverlays ?? [],
+  );
+  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
 
   const [edits, setEdits] = useState<VideoEdits>({
     trimStart: initialEdits?.trimStart ?? 0,
@@ -66,6 +117,10 @@ export function VideoEditor({
             muted: savedEdits.muted ?? false,
             volume: savedEdits.volume ?? 1,
           });
+          // Load text overlays if present
+          if (savedEdits.textOverlays && savedEdits.textOverlays.length > 0) {
+            setTextOverlays(savedEdits.textOverlays as VideoTextOverlay[]);
+          }
         }
       } catch {
         // No saved edits
@@ -156,8 +211,51 @@ export function VideoEditor({
       muted: false,
       volume: 1,
     });
+    setTextOverlays([]);
+    setSelectedTextId(null);
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
+    }
+  };
+
+  // Add a new text overlay
+  const addTextOverlay = (initialText: string = "Text") => {
+    const newOverlay: VideoTextOverlay = {
+      id: crypto.randomUUID(),
+      text: initialText,
+      x: 0,
+      y: 0,
+      fontSize: 48,
+      fontFamily: "Inter, sans-serif",
+      color: "#FFFFFF",
+      opacity: 1,
+      rotation: 0,
+      textAlign: "center",
+      shadow: true,
+      position: "middle-center",
+      timing: "full",
+    };
+    setTextOverlays([...textOverlays, newOverlay]);
+    setSelectedTextId(newOverlay.id);
+  };
+
+  // Update a text overlay property
+  const updateTextOverlay = (
+    id: string,
+    updates: Partial<VideoTextOverlay>,
+  ) => {
+    setTextOverlays((overlays) =>
+      overlays.map((overlay) =>
+        overlay.id === id ? { ...overlay, ...updates } : overlay,
+      ),
+    );
+  };
+
+  // Delete a text overlay
+  const deleteTextOverlay = (id: string) => {
+    setTextOverlays((overlays) => overlays.filter((o) => o.id !== id));
+    if (selectedTextId === id) {
+      setSelectedTextId(null);
     }
   };
 
@@ -166,9 +264,16 @@ export function VideoEditor({
     setIsSaving(true);
     setSaveStatus("idle");
 
+    // Combine edits with text overlays and aspect ratio
+    const fullEdits: VideoEdits = {
+      ...edits,
+      textOverlays: textOverlays.length > 0 ? textOverlays : undefined,
+      aspectRatio: { width: aspectRatio.width, height: aspectRatio.height },
+    };
+
     try {
-      await editsApi.saveVideoEdit(projectId, media.id, edits);
-      onSave?.(edits);
+      await editsApi.saveVideoEdit(projectId, media.id, fullEdits);
+      onSave?.(fullEdits);
       setSaveStatus("saved");
       // Brief delay to show success, then close
       setTimeout(() => onClose(), 500);
@@ -178,6 +283,9 @@ export function VideoEditor({
       setIsSaving(false);
     }
   };
+
+  // Get the selected text overlay
+  const selectedText = textOverlays.find((t) => t.id === selectedTextId);
 
   const trimDuration = edits.trimEnd - edits.trimStart;
 
@@ -213,16 +321,43 @@ export function VideoEditor({
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Video Preview - constrained height to leave room for controls */}
+        {/* Video Preview - cropped to target aspect ratio */}
         <div className="flex-1 flex items-center justify-center p-4 bg-black min-h-0">
-          <video
-            ref={videoRef}
-            src={`/media/${media.originalPath}`}
-            className="max-h-full max-w-full rounded-lg cursor-pointer"
-            style={{ maxHeight: "calc(100vh - 400px)" }}
-            onClick={togglePlay}
-            preload="metadata"
-          />
+          <div className="flex flex-col items-center">
+            {/* Aspect ratio label */}
+            <div className="text-xs text-gray-400 mb-2">
+              Preview: {aspectRatio.width}:{aspectRatio.height}
+              {aspectRatio.label ? ` (${aspectRatio.label})` : ""}
+            </div>
+            {/* Cropped video container */}
+            <div
+              ref={videoContainerRef}
+              className="relative rounded-lg overflow-hidden cursor-pointer"
+              style={{
+                width: croppedWidth,
+                height: croppedHeight,
+              }}
+              onClick={togglePlay}
+            >
+              <video
+                ref={videoRef}
+                src={`/media/${media.originalPath}`}
+                className="absolute inset-0 w-full h-full"
+                style={{ objectFit: "cover" }}
+                preload="metadata"
+              />
+              {/* Text overlay preview */}
+              <VideoTextPreview
+                overlays={textOverlays}
+                currentTime={currentTime}
+                trimStart={edits.trimStart}
+                trimEnd={edits.trimEnd}
+                selectedTextId={selectedTextId}
+                onSelectText={setSelectedTextId}
+                showAllForEditing={true}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Controls - scrollable if needed */}
@@ -346,16 +481,17 @@ export function VideoEditor({
             </p>
           </div>
 
-          {/* Speed & Audio */}
-          <div className="grid grid-cols-2 gap-8">
+          {/* Speed, Audio & Text */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Speed */}
             <div>
               <label className="block text-sm text-gray-400 mb-2">Speed</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {SPEED_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setEdits({ ...edits, speed: opt.value })}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    className={`px-3 py-2 rounded-lg text-sm font-medium ${
                       edits.speed === opt.value
                         ? "bg-primary-600 text-white"
                         : "bg-gray-700 text-gray-300 hover:bg-gray-600"
@@ -367,6 +503,7 @@ export function VideoEditor({
               </div>
             </div>
 
+            {/* Audio */}
             <div>
               <label className="block text-sm text-gray-400 mb-2">Audio</label>
               <div className="flex items-center gap-4">
@@ -429,7 +566,211 @@ export function VideoEditor({
                 />
               </div>
             </div>
+
+            {/* Text Overlay */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Text Overlay
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => addTextOverlay()}
+                className="w-full"
+              >
+                + Add Text
+              </Button>
+            </div>
           </div>
+
+          {/* Text Overlay Editor Panel */}
+          {selectedText && (
+            <div className="mt-6 p-4 bg-gray-700 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-white">Edit Text</h3>
+                <button
+                  onClick={() => deleteTextOverlay(selectedText.id)}
+                  className="text-red-400 hover:text-red-300 text-sm"
+                >
+                  Delete
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Text Input */}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    Text
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedText.text}
+                    onChange={(e) =>
+                      updateTextOverlay(selectedText.id, {
+                        text: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Enter text..."
+                  />
+                </div>
+
+                {/* Position & Timing Row */}
+                <div className="flex gap-4">
+                  {/* Position */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Position
+                    </label>
+                    <AlignmentPicker
+                      value={selectedText.position || "middle-center"}
+                      onChange={(position: TextPosition) =>
+                        updateTextOverlay(selectedText.id, { position })
+                      }
+                      size="sm"
+                    />
+                  </div>
+
+                  {/* Timing */}
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">
+                      When to show
+                    </label>
+                    <select
+                      value={selectedText.timing}
+                      onChange={(e) =>
+                        updateTextOverlay(selectedText.id, {
+                          timing: e.target.value as VideoTextTiming,
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      {TIMING_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Font & Size Row */}
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Font
+                    </label>
+                    <select
+                      value={selectedText.fontFamily}
+                      onChange={(e) =>
+                        updateTextOverlay(selectedText.id, {
+                          fontFamily: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      {FONT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Size
+                    </label>
+                    <input
+                      type="number"
+                      value={selectedText.fontSize}
+                      onChange={(e) =>
+                        updateTextOverlay(selectedText.id, {
+                          fontSize: Number(e.target.value),
+                        })
+                      }
+                      min={12}
+                      max={120}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Color & Shadow Row */}
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">
+                      Color
+                    </label>
+                    <div className="flex gap-1 flex-wrap">
+                      {COLOR_PRESETS.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() =>
+                            updateTextOverlay(selectedText.id, { color })
+                          }
+                          className={`w-6 h-6 rounded border-2 ${
+                            selectedText.color === color
+                              ? "border-primary-500"
+                              : "border-gray-600"
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                      <input
+                        type="color"
+                        value={selectedText.color}
+                        onChange={(e) =>
+                          updateTextOverlay(selectedText.id, {
+                            color: e.target.value,
+                          })
+                        }
+                        className="w-6 h-6 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedText.shadow ?? true}
+                        onChange={(e) =>
+                          updateTextOverlay(selectedText.id, {
+                            shadow: e.target.checked,
+                          })
+                        }
+                        className="rounded border-gray-600 bg-gray-800 text-primary-600 focus:ring-primary-500"
+                      />
+                      Shadow
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Text Layers List */}
+          {textOverlays.length > 0 && !selectedText && (
+            <div className="mt-6">
+              <label className="block text-sm text-gray-400 mb-2">
+                Text Layers ({textOverlays.length})
+              </label>
+              <div className="space-y-2">
+                {textOverlays.map((overlay) => (
+                  <button
+                    key={overlay.id}
+                    onClick={() => setSelectedTextId(overlay.id)}
+                    className="w-full text-left px-3 py-2 bg-gray-700 rounded-lg text-sm text-white hover:bg-gray-600 flex items-center justify-between"
+                  >
+                    <span className="truncate">{overlay.text || "Empty"}</span>
+                    <span className="text-xs text-gray-400 ml-2">
+                      {TIMING_OPTIONS.find((t) => t.value === overlay.timing)
+                        ?.label || overlay.timing}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

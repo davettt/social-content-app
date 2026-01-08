@@ -6,6 +6,7 @@ import type {
   MediaUploadResult,
   CaptionSuggestion,
   ViralityScore,
+  VideoTextOverlay,
 } from "../types";
 
 const API_BASE = "/api";
@@ -300,6 +301,8 @@ export const editsApi = {
       speed: number;
       muted: boolean;
       volume: number;
+      textOverlays?: VideoTextOverlay[];
+      aspectRatio?: { width: number; height: number };
     },
   ) =>
     fetchJson<{
@@ -310,6 +313,8 @@ export const editsApi = {
       speed: number;
       muted: boolean;
       volume: number;
+      textOverlays?: VideoTextOverlay[];
+      aspectRatio?: { width: number; height: number };
       editedAt: string;
     }>(`${API_BASE}/edits/${projectId}/video/${mediaId}`, {
       method: "POST",
@@ -324,6 +329,8 @@ export const editsApi = {
       speed?: number;
       muted?: boolean;
       volume?: number;
+      textOverlays?: VideoTextOverlay[];
+      aspectRatio?: { width: number; height: number };
       editedAt?: string;
     }>(`${API_BASE}/edits/${projectId}/video/${mediaId}`),
 

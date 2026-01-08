@@ -14,10 +14,11 @@ import { Modal } from "../common/Modal";
 import { PageLoader } from "../common/LoadingSpinner";
 import { ImageEditor } from "../editor/ImageEditor";
 import { VideoEditor } from "../editor/VideoEditor";
+import { VideoTextPreview } from "../editor/VideoTextPreview";
 import { TEMPLATES } from "../templates/templateData";
 import { TemplateRenderer } from "../templates/TemplateRenderer";
 import { editsApi } from "../../services/api";
-import type { Platform, Media, Template } from "../../types";
+import type { Platform, Media, Template, VideoTextOverlay } from "../../types";
 
 const PLATFORM_LIMITS: Record<Platform, number> = {
   instagram: 2200,
@@ -198,6 +199,10 @@ export function PostComposer() {
   const [templatePromptValues, setTemplatePromptValues] = useState<
     Record<number, string>
   >({});
+  // Track loaded video edits for preview (mediaId -> textOverlays)
+  const [videoEdits, setVideoEdits] = useState<
+    Record<string, { textOverlays: VideoTextOverlay[] }>
+  >({});
   const [showTemplateRenderer, setShowTemplateRenderer] = useState(false);
 
   // Update a template prompt value
@@ -365,6 +370,40 @@ export function PostComposer() {
 
     loadSavedEdits();
   }, [projectId, allMedia, setEditedImage]);
+
+  // Load saved video edits for text overlay preview
+  useEffect(() => {
+    if (!projectId || !allMedia || allMedia.length === 0) return;
+
+    const loadVideoEdits = async () => {
+      const videos = allMedia.filter((m) => m.type === "video");
+      const loadedEdits: Record<string, { textOverlays: VideoTextOverlay[] }> =
+        {};
+
+      for (const video of videos) {
+        try {
+          const savedEdits = await editsApi.loadVideoEdit(projectId, video.id);
+          if (
+            savedEdits.hasEdits &&
+            savedEdits.textOverlays &&
+            savedEdits.textOverlays.length > 0
+          ) {
+            loadedEdits[video.id] = {
+              textOverlays: savedEdits.textOverlays,
+            };
+          }
+        } catch {
+          // Silently ignore errors - no saved edits for this video
+        }
+      }
+
+      if (Object.keys(loadedEdits).length > 0) {
+        setVideoEdits(loadedEdits);
+      }
+    };
+
+    loadVideoEdits();
+  }, [projectId, allMedia]);
 
   // Clear template when navigating away
   const handleClearTemplate = () => {
@@ -999,12 +1038,29 @@ export function PostComposer() {
                         <>
                           {currentItem.type === "media" &&
                           currentItem.media.type === "video" ? (
-                            <video
-                              src={`/media/${currentItem.media.originalPath}`}
-                              className="w-full h-full object-cover object-center"
-                              controls
-                              muted
-                            />
+                            <div className="relative w-full h-full">
+                              <video
+                                src={`/media/${currentItem.media.originalPath}`}
+                                className="w-full h-full object-cover object-center"
+                                controls
+                                muted
+                              />
+                              {/* Video text overlay preview */}
+                              {videoEdits[currentItem.media.id]?.textOverlays &&
+                                videoEdits[currentItem.media.id]!.textOverlays
+                                  .length > 0 && (
+                                  <VideoTextPreview
+                                    overlays={
+                                      videoEdits[currentItem.media.id]!
+                                        .textOverlays
+                                    }
+                                    currentTime={0}
+                                    trimStart={0}
+                                    trimEnd={999}
+                                    showAllForEditing={true}
+                                  />
+                                )}
+                            </div>
                           ) : (
                             <img
                               src={
@@ -1290,6 +1346,10 @@ export function PostComposer() {
           <VideoEditor
             media={editingMedia}
             projectId={projectId!}
+            aspectRatio={getPlatformDimensions(
+              previewPlatform,
+              platformAspects[previewPlatform],
+            )}
             onClose={() => setEditingMedia(null)}
           />
         ) : (

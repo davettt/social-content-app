@@ -193,7 +193,15 @@ router.delete("/:projectId/image/:mediaId", async (req, res, next) => {
 router.post("/:projectId/video/:mediaId", async (req, res, next) => {
   try {
     const { projectId, mediaId } = req.params;
-    const { trimStart, trimEnd, speed, muted, volume } = req.body;
+    const {
+      trimStart,
+      trimEnd,
+      speed,
+      muted,
+      volume,
+      textOverlays,
+      aspectRatio,
+    } = req.body;
 
     const editsDir = await ensureEditsDir(projectId);
 
@@ -204,6 +212,8 @@ router.post("/:projectId/video/:mediaId", async (req, res, next) => {
       speed: speed ?? 1,
       muted: muted ?? false,
       volume: volume ?? 1,
+      textOverlays: textOverlays ?? [],
+      aspectRatio: aspectRatio ?? null,
       editedAt: new Date().toISOString(),
     };
 
