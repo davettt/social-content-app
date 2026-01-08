@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs/promises";
 import sharp from "sharp";
+import { spawn } from "child_process";
 import { v4 as uuidv4 } from "uuid";
 import {
   getProjectDir,
@@ -10,6 +11,7 @@ import {
   PROJECTS_DIR,
 } from "../utils/storage.js";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
+import { getVideoThumbnail } from "../services/metadataExtractor.js";
 
 const router = express.Router();
 
@@ -364,6 +366,286 @@ router.post("/:projectId/collage", async (req, res, next) => {
     const index = await getMediaIndex(projectId);
     index.media.push(mediaItem);
     await writeMediaIndex(projectId, index);
+
+    res.status(201).json({
+      success: true,
+      media: mediaItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================
+// VIDEO STITCH ENDPOINTS
+// ============================================
+
+// Helper to get video duration using ffprobe
+async function getVideoDuration(filePath) {
+  return new Promise((resolve) => {
+    const ffprobe = spawn("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "csv=p=0",
+      filePath,
+    ]);
+
+    let stdout = "";
+    ffprobe.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ffprobe.on("close", (code) => {
+      if (code === 0) {
+        resolve(parseFloat(stdout.trim()) || 0);
+      } else {
+        resolve(0);
+      }
+    });
+
+    ffprobe.on("error", () => {
+      resolve(0);
+    });
+  });
+}
+
+// Check if a video file has an audio stream
+async function hasAudioStream(filePath) {
+  return new Promise((resolve) => {
+    const ffprobe = spawn("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "a",
+      "-show_entries",
+      "stream=codec_type",
+      "-of",
+      "csv=p=0",
+      filePath,
+    ]);
+
+    let stdout = "";
+    ffprobe.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ffprobe.on("close", () => {
+      // If there's any output, there's an audio stream
+      resolve(stdout.trim().length > 0);
+    });
+
+    ffprobe.on("error", () => {
+      resolve(false);
+    });
+  });
+}
+
+// Stitch multiple video clips together using FFmpeg filter_complex
+async function stitchVideosWithFFmpeg(clips, destPath) {
+  // First, check which clips have audio
+  for (const clip of clips) {
+    clip.hasAudio = await hasAudioStream(clip.sourcePath);
+    console.log(`Clip ${clip.mediaId}: hasAudio=${clip.hasAudio}`);
+  }
+
+  return new Promise((resolve, reject) => {
+    const inputArgs = [];
+    const filterParts = [];
+
+    // Build input arguments for each clip
+    clips.forEach((clip) => {
+      inputArgs.push("-i", clip.sourcePath);
+    });
+
+    // Target dimensions for output (1080x1920 portrait for social media)
+    const targetWidth = 1080;
+    const targetHeight = 1920;
+
+    // Build filter for each clip
+    clips.forEach((clip, i) => {
+      // Calculate duration for this clip
+      const duration = clip.trimEnd - clip.trimStart;
+
+      // Video filter with trim, scale to fit, and pad to exact target dimensions
+      // This ensures all clips have identical dimensions for concat
+      // Use explicit dimensions in pad calculation for reliability
+      filterParts.push(
+        `[${i}:v]trim=start=${clip.trimStart}:duration=${duration},setpts=PTS-STARTPTS,scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(${targetWidth}-iw)/2:(${targetHeight}-ih)/2:black,setsar=1[v${i}]`,
+      );
+
+      // Audio filter - use actual audio or generate silence
+      if (clip.hasAudio) {
+        filterParts.push(
+          `[${i}:a]atrim=start=${clip.trimStart}:duration=${duration},asetpts=PTS-STARTPTS[a${i}]`,
+        );
+      } else {
+        // Generate silent audio for this clip's duration using aevalsrc
+        filterParts.push(`aevalsrc=0:d=${duration}:s=48000:c=stereo[a${i}]`);
+      }
+    });
+
+    // Concat all streams
+    const concatInputs = clips.map((_, i) => `[v${i}][a${i}]`).join("");
+    filterParts.push(
+      `${concatInputs}concat=n=${clips.length}:v=1:a=1[outv][outa]`,
+    );
+
+    const args = [
+      ...inputArgs,
+      "-filter_complex",
+      filterParts.join(";"),
+      "-map",
+      "[outv]",
+      "-map",
+      "[outa]",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "fast",
+      "-crf",
+      "23",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+      "-y",
+      destPath,
+    ];
+
+    console.log(`FFmpeg stitch command: ffmpeg ${args.join(" ")}`);
+
+    const ffmpeg = spawn("ffmpeg", args);
+
+    let stderr = "";
+    ffmpeg.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        console.log(`FFmpeg stitched videos successfully: ${destPath}`);
+        resolve();
+      } else {
+        console.error(`FFmpeg stitch failed with code ${code}:`, stderr);
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (err) => {
+      console.error("FFmpeg spawn error:", err);
+      reject(err);
+    });
+  });
+}
+
+// POST /api/edits/:projectId/stitch - Stitch multiple video clips together
+router.post("/:projectId/stitch", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { clips } = req.body;
+
+    if (!clips || !Array.isArray(clips) || clips.length < 2) {
+      throw new ValidationError("At least 2 clips are required for stitching");
+    }
+
+    const projectDir = await getProjectDir(projectId);
+    const originalsDir = path.join(projectDir, "media", "originals");
+    const thumbnailsDir = path.join(projectDir, "media", "thumbnails");
+    await fs.mkdir(originalsDir, { recursive: true });
+    await fs.mkdir(thumbnailsDir, { recursive: true });
+
+    // Get media index to resolve media IDs to file paths
+    const index = await getMediaIndex(projectId);
+
+    // Build clip info with source paths and durations
+    const clipInfos = [];
+    let totalDuration = 0;
+
+    for (const clip of clips) {
+      const media = index.media.find((m) => m.id === clip.mediaId);
+      if (!media) {
+        throw new ValidationError(`Media not found: ${clip.mediaId}`);
+      }
+      if (media.type !== "video") {
+        throw new ValidationError(`Media ${clip.mediaId} is not a video`);
+      }
+
+      const sourcePath = path.join(PROJECTS_DIR, media.originalPath);
+
+      // Get video duration if not provided
+      let videoDuration = media.metadata?.duration || 0;
+      if (!videoDuration) {
+        videoDuration = await getVideoDuration(sourcePath);
+      }
+
+      // Default trimEnd to video duration if not specified
+      const trimStart = clip.trimStart || 0;
+      const trimEnd = clip.trimEnd || videoDuration;
+      const clipDuration = trimEnd - trimStart;
+
+      clipInfos.push({
+        mediaId: clip.mediaId,
+        sourcePath,
+        trimStart,
+        trimEnd,
+        duration: clipDuration,
+      });
+
+      totalDuration += clipDuration;
+    }
+
+    // Generate new media ID and output path
+    const mediaId = uuidv4();
+    const filename = `stitched-${mediaId}.mp4`;
+    const outputPath = path.join(originalsDir, filename);
+
+    // Stitch the videos
+    console.log(
+      `Stitching ${clipInfos.length} clips into ${filename} (total duration: ${totalDuration}s)`,
+    );
+    await stitchVideosWithFFmpeg(clipInfos, outputPath);
+
+    // Generate thumbnail from the stitched video
+    const thumbnailFilename = `${mediaId}.jpg`;
+    const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
+    await getVideoThumbnail(outputPath, thumbnailPath, 1);
+
+    // Create media item
+    const mediaItem = {
+      id: mediaId,
+      projectId,
+      type: "video",
+      filename,
+      originalPath: `${projectId}/media/originals/${filename}`,
+      thumbnailPath: `${projectId}/media/thumbnails/${thumbnailFilename}`,
+      metadata: {
+        width: 1080,
+        height: 1920, // Will be adjusted based on source aspect ratios
+        duration: totalDuration,
+        isStitched: true,
+        sourceClips: clipInfos.map((c) => ({
+          mediaId: c.mediaId,
+          trimStart: c.trimStart,
+          trimEnd: c.trimEnd,
+        })),
+      },
+      userMetadata: {
+        showDate: false,
+        showTime: false,
+        showLocation: false,
+        customCaption: "",
+      },
+      uploadedAt: new Date().toISOString(),
+    };
+
+    // Add to media index
+    index.media.push(mediaItem);
+    await writeMediaIndex(projectId, index);
+
+    console.log(`Created stitched video: ${mediaId}`);
 
     res.status(201).json({
       success: true,

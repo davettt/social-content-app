@@ -362,4 +362,21 @@ export const editsApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Video stitching
+  stitchVideos: (
+    projectId: string,
+    clips: Array<{
+      mediaId: string;
+      trimStart?: number;
+      trimEnd?: number;
+    }>,
+  ) =>
+    fetchJson<{
+      success: boolean;
+      media: Media;
+    }>(`${API_BASE}/edits/${projectId}/stitch`, {
+      method: "POST",
+      body: JSON.stringify({ clips }),
+    }),
 };

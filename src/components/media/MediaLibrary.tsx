@@ -12,6 +12,7 @@ import { Button } from "../common/Button";
 import { Modal } from "../common/Modal";
 import { PageLoader } from "../common/LoadingSpinner";
 import { CollageBuilder } from "../editor/CollageBuilder";
+import { VideoStitcher } from "../editor/VideoStitcher";
 import { useComposerStore } from "../../stores/composerStore";
 import type { Media } from "../../types";
 
@@ -28,6 +29,7 @@ export function MediaLibrary() {
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [showCollageBuilder, setShowCollageBuilder] = useState(false);
+  const [showVideoStitcher, setShowVideoStitcher] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [collageResult, setCollageResult] = useState<string | null>(null);
 
@@ -107,6 +109,15 @@ export function MediaLibrary() {
         </div>
 
         <div className="flex items-center gap-4">
+          <Button
+            variant="secondary"
+            onClick={() => setShowVideoStitcher(true)}
+            disabled={
+              !media || media.filter((m) => m.type === "video").length < 2
+            }
+          >
+            Stitch Videos
+          </Button>
           <Button
             variant="secondary"
             onClick={() => setShowCollageBuilder(true)}
@@ -235,6 +246,21 @@ export function MediaLibrary() {
             setShowCollageBuilder(false);
           }}
           onClose={() => setShowCollageBuilder(false)}
+        />
+      )}
+
+      {/* Video Stitcher */}
+      {showVideoStitcher && media && projectId && (
+        <VideoStitcher
+          availableMedia={media}
+          projectId={projectId}
+          onSave={() => {
+            // Video was saved to media library, just close and let the list refresh
+            setShowVideoStitcher(false);
+            // Navigate to compose with the new video selected
+            navigate(`/projects/${projectId}/compose`);
+          }}
+          onClose={() => setShowVideoStitcher(false)}
         />
       )}
 
