@@ -100,6 +100,7 @@ social-content-app/
 ## Known Limitations
 
 - **Media persistence**: Edited images are stored in-memory during the session but not saved as separate files.
+- **Reels/Stories safe zone**: The 5% safe zone margin may not account for Instagram's UI overlays on Reels and Stories (song name at top, captions/buttons at bottom). Top-aligned text may need manual adjustment for these formats.
 
 ## Personal Project Notice
 

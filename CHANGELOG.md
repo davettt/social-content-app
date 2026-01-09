@@ -10,6 +10,10 @@
 ### Changed
 - Video edits (trim, speed, text overlays) now fully persist and apply to exports via FFmpeg processing
 - Improved preview UX for video trimming with clickable start/end buttons
+- **Redesigned video editor UI** - Text controls moved to right sidebar panel (matching ImageEditor layout), brand fonts and colors now available for video text overlays
+
+### Known Limitations
+- Safe zone margins (5%) may not be sufficient for Reels/Stories where Instagram overlays UI at top (song name, username) and bottom (captions, buttons). Top-aligned text may need manual adjustment for these formats.
 
 ### Fixed
 - FFmpeg concat now handles mixed aspect ratios by normalizing all clips to consistent dimensions

@@ -1346,10 +1346,27 @@ export function PostComposer() {
           <VideoEditor
             media={editingMedia}
             projectId={projectId!}
+            brandKit={project?.brandKit}
             aspectRatio={getPlatformDimensions(
               previewPlatform,
               platformAspects[previewPlatform],
             )}
+            onSave={(edits) => {
+              // Update videoEdits state with new text overlays for preview
+              if (edits.textOverlays && edits.textOverlays.length > 0) {
+                setVideoEdits((prev) => ({
+                  ...prev,
+                  [editingMedia.id]: { textOverlays: edits.textOverlays! },
+                }));
+              } else {
+                // Remove from videoEdits if no text overlays
+                setVideoEdits((prev) => {
+                  const updated = { ...prev };
+                  delete updated[editingMedia.id];
+                  return updated;
+                });
+              }
+            }}
             onClose={() => setEditingMedia(null)}
           />
         ) : (
