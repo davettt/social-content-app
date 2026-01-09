@@ -7,8 +7,9 @@ A local-first web application for creating viral-optimized social media content.
 - **Multi-project support** - Manage multiple brands/businesses
 - **AI-powered business analysis** - Extract brand info from website or questionnaire
 - **Media library** - Upload photos/videos with metadata extraction
-- **Image editor** - Crop, filters, adjustments, text overlay
-- **Video editor** - Trim, speed adjust, audio controls
+- **Image editor** - Crop, filters, adjustments, text overlay with brand fonts/colors
+- **Video editor** - Trim, speed adjust, audio controls, text overlay
+- **Video stitcher** - Combine multiple clips with automatic aspect ratio normalization
 - **Collage builder** - Multi-image layouts
 - **Post composer** - AI captions, hashtags, virality scoring
 - **Template system** - Pre-built viral formats
@@ -98,7 +99,6 @@ social-content-app/
 
 ## Known Limitations
 
-- **Video editing**: The video editor UI allows previewing trim, speed, and audio changes, but edits are not yet persisted or applied to exports. Full video processing with FFmpeg is planned for a future release.
 - **Media persistence**: Edited images are stored in-memory during the session but not saved as separate files.
 
 ## Personal Project Notice
@@ -112,4 +112,8 @@ I'm not actively reviewing pull requests or feature requests, as this keeps the 
 
 ## License
 
-MIT
+MIT License with Commons Clause
+
+You are free to use, modify, and distribute this software for personal and non-commercial purposes. However, you may not sell, sublicense, or provide commercial hosting or services based on this software without explicit written permission from the copyright holder.
+
+See [LICENSE](LICENSE) for full terms.

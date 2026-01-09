@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0] - 2026-01-08
+
+### Added
+- **Video stitcher** - Combine multiple video clips into a single video with automatic aspect ratio normalization (1080x1920 portrait output with letterboxing/pillarboxing)
+- **Video text overlay** - Add text overlays to videos with timing presets (full video, first/last 3s, first/last 5s), position options, and styling (font, color, shadow, background)
+- **Coolors.co palette import** - Import color palettes directly from Coolors.co URLs in brand kit settings
+
+### Changed
+- Video edits (trim, speed, text overlays) now fully persist and apply to exports via FFmpeg processing
+- Improved preview UX for video trimming with clickable start/end buttons
+
+### Fixed
+- FFmpeg concat now handles mixed aspect ratios by normalizing all clips to consistent dimensions
+- Videos without audio tracks no longer cause stitching failures (silent audio auto-generated)
+
 ## [1.2.0] - 2025-12-31
 
 ### Added
