@@ -711,6 +711,30 @@ export function VideoEditor({
                   + Add Text
                 </Button>
 
+                {/* Help tips */}
+                <div className="space-y-2">
+                  {/* Reels/Stories safe zone warning */}
+                  {aspectRatio.width / aspectRatio.height < 1 && (
+                    <div className="p-2 bg-amber-900/30 border border-amber-700/50 rounded-lg">
+                      <p className="text-xs text-amber-200">
+                        <strong>Tip:</strong> For Reels/Stories, avoid placing text at the very top or bottom — Instagram overlays UI elements there (song name, captions, buttons).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* When to use this vs Instagram */}
+                  <details className="text-xs text-gray-400">
+                    <summary className="cursor-pointer hover:text-gray-300">
+                      When to add text here vs Instagram?
+                    </summary>
+                    <div className="mt-2 p-2 bg-gray-700/50 rounded space-y-2">
+                      <p><strong className="text-gray-300">Use this app for:</strong> Brand fonts/colors, multi-platform export, batch content, client deliverables</p>
+                      <p><strong className="text-gray-300">Use Instagram for:</strong> Interactive elements (polls, links), animated effects, music-synced text, quick Stories</p>
+                      <p className="text-gray-500 italic">Text added here is baked into the video file. Instagram text is a platform overlay.</p>
+                    </div>
+                  </details>
+                </div>
+
                 {/* Text Layers List */}
                 {textOverlays.length > 0 && (
                   <div>

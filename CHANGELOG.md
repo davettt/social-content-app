@@ -1,11 +1,12 @@
 # Changelog
 
-## [1.3.0] - 2026-01-08
+## [1.3.0] - 2026-01-09
 
 ### Added
 - **Video stitcher** - Combine multiple video clips into a single video with automatic aspect ratio normalization (1080x1920 portrait output with letterboxing/pillarboxing)
 - **Video text overlay** - Add text overlays to videos with timing presets (full video, first/last 3s, first/last 5s), position options, and styling (font, color, shadow, background)
 - **Coolors.co palette import** - Import color palettes directly from Coolors.co URLs in brand kit settings
+- **Help guidance for video text** - Collapsible help section explaining when to add text in-app vs Instagram (in-app for brand fonts, multi-platform; Instagram for interactive elements, animations)
 
 ### Changed
 - Video edits (trim, speed, text overlays) now fully persist and apply to exports via FFmpeg processing
