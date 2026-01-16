@@ -51,3 +51,15 @@ export function useCalculateViralityScore() {
     }) => aiApi.calculateViralityScore(data),
   });
 }
+
+export function useSuggestGraphicsEmoji() {
+  return useMutation({
+    mutationFn: (data: {
+      caption: string;
+      hashtags?: string[];
+      platform: string;
+      industry?: string;
+      postType?: string;
+    }) => aiApi.suggestGraphicsEmoji(data),
+  });
+}

@@ -7,6 +7,7 @@ import type {
   CaptionSuggestion,
   ViralityScore,
   VideoTextOverlay,
+  GraphicsEmojiRecommendations,
 } from "../types";
 
 const API_BASE = "/api";
@@ -183,6 +184,21 @@ export const aiApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  suggestGraphicsEmoji: (data: {
+    caption: string;
+    hashtags?: string[];
+    platform: string;
+    industry?: string;
+    postType?: string;
+  }) =>
+    fetchJson<GraphicsEmojiRecommendations>(
+      `${API_BASE}/ai/graphics-emoji-suggestions`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
 };
 
 // Export API

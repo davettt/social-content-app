@@ -571,10 +571,7 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
         ) {
           try {
             // Try to render emoji text to image
-            const imagePath = await renderTextToImage(
-              overlay,
-              fontScaleFactor,
-            );
+            const imagePath = await renderTextToImage(overlay, fontScaleFactor);
             if (imagePath) {
               tempImageFiles.push(imagePath);
               args.push("-i", imagePath);
@@ -582,7 +579,10 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
               hasImageOverlays = true;
             }
           } catch (err) {
-            console.warn("Failed to render emoji overlay, falling back to drawtext:", err.message);
+            console.warn(
+              "Failed to render emoji overlay, falling back to drawtext:",
+              err.message,
+            );
           }
         }
       }

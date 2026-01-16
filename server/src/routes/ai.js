@@ -4,6 +4,7 @@ import {
   generateCaption,
   suggestHashtags,
   calculateViralityScore,
+  suggestGraphicsAndEmoji,
 } from "../services/aiService.js";
 import { ValidationError } from "../middleware/errorHandler.js";
 
@@ -90,6 +91,33 @@ router.post("/virality-score", async (req, res, next) => {
       mediaType,
       platform,
       businessContext,
+    });
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/ai/graphics-emoji-suggestions - Get graphics & emoji recommendations
+router.post("/graphics-emoji-suggestions", async (req, res, next) => {
+  try {
+    const { caption, hashtags, platform, industry, postType } = req.body;
+
+    if (!caption) {
+      throw new ValidationError("Caption is required");
+    }
+
+    if (!platform) {
+      throw new ValidationError("Platform is required");
+    }
+
+    const result = await suggestGraphicsAndEmoji({
+      caption,
+      hashtags,
+      platform,
+      industry,
+      postType,
     });
 
     res.json(result);

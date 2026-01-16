@@ -2,9 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
 
-// Helper to strip markdown code blocks from AI responses
+// Helper to strip markdown code blocks from AI responses and extract JSON
 function parseJsonResponse(text) {
   let jsonText = text.trim();
+
+  // Remove markdown code blocks
   if (jsonText.startsWith("```json")) {
     jsonText = jsonText.slice(7);
   } else if (jsonText.startsWith("```")) {
@@ -13,6 +15,18 @@ function parseJsonResponse(text) {
   if (jsonText.endsWith("```")) {
     jsonText = jsonText.slice(0, -3);
   }
+
+  jsonText = jsonText.trim();
+
+  // If there's still extra text, try to extract JSON object
+  // Look for the first { and last }
+  const firstBrace = jsonText.indexOf("{");
+  const lastBrace = jsonText.lastIndexOf("}");
+
+  if (firstBrace !== -1 && lastBrace !== -1 && firstBrace < lastBrace) {
+    jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+  }
+
   return JSON.parse(jsonText.trim());
 }
 
@@ -21,6 +35,7 @@ const rateLimits = {
   caption: { count: 0, resetTime: Date.now() + 3600000, limit: 50 },
   hashtags: { count: 0, resetTime: Date.now() + 3600000, limit: 100 },
   virality: { count: 0, resetTime: Date.now() + 3600000, limit: 100 },
+  graphics: { count: 0, resetTime: Date.now() + 3600000, limit: 100 },
 };
 
 function checkRateLimit(type) {
@@ -263,5 +278,100 @@ Return ONLY the JSON.`;
   } catch (error) {
     console.error("Error calculating virality score:", error);
     throw new Error("Failed to calculate virality score");
+  }
+}
+
+const PLATFORM_GRAPHICS_CONTEXT = {
+  instagram: {
+    emoji:
+      "Instagram audiences love emoji. Use liberally to add personality and break up text. Popular: ✨🎉❤️🔥💪🚀🌟📸✨",
+    graphics:
+      "Use arrows (→➡️⬇️), stars (⭐✨), and decorative elements freely. Heart-eye emojis and celebration emojis perform well.",
+    formats: ["Carousel", "Reel", "Stories", "Feed Post"],
+  },
+  linkedin: {
+    emoji:
+      "LinkedIn audiences prefer minimal, professional emoji use. Stick to: 📈📊💼🎯✅💡🚀📝. Avoid excessive emoji.",
+    graphics:
+      "Use checkmarks (✓✅), arrows (→➡️), and bullet points (•). Keep design minimal and professional.",
+    formats: ["Document", "Poll", "Article", "Text Post"],
+  },
+  twitter: {
+    emoji:
+      "Twitter/X audiences use moderate emoji. Popular: 🔥💯👀😂✨💪🎯. Avoid overdoing it.",
+    graphics:
+      "Use arrows (→➡️), bullets (•), and text emphasis. Works well for threads and discussions.",
+    formats: ["Thread", "Tweet", "Quote Tweet"],
+  },
+  tiktok: {
+    emoji:
+      "TikTok audiences love emoji heavily. Use liberally to add energy and personality. All types perform well.",
+    graphics:
+      "Use arrows, stars, and decorative elements freely. Bold and energetic graphics work best.",
+    formats: ["Duet", "Stitch", "Trending Audio"],
+  },
+};
+
+export async function suggestGraphicsAndEmoji({
+  caption,
+  hashtags = [],
+  platform = "instagram",
+  industry,
+  postType = "business",
+}) {
+  checkRateLimit("graphics");
+
+  const platformContext =
+    PLATFORM_GRAPHICS_CONTEXT[platform] || PLATFORM_GRAPHICS_CONTEXT.instagram;
+
+  const prompt = `You are a social media content strategist for ${platform}. Analyze this caption and provide concise recommendations in the exact format below. Use plain text, no JSON or code blocks.
+
+CAPTION: "${caption}"
+
+PLATFORM CONTEXT:
+${platformContext.emoji}
+${platformContext.graphics}
+
+Provide recommendations in EXACTLY this format (use these section headers):
+
+EMOJI: [phrases from caption] → [emoji suggestions separated by spaces]
+GRAPHICS: [type] → [symbol suggestions separated by spaces]
+TRENDING: #Hashtag1 #Hashtag2 #Hashtag3 (3-5 relevant, trending hashtags)
+VERSION A: [alternative caption v1 - different tone/emoji]
+VERSION B: [alternative caption v2 - different approach/emoji]
+
+Rules:
+- EMOJI section: List 2-3 key phrases from the caption, arrow, then emoji suggestions
+- GRAPHICS section: Suggest visual elements (arrows, bullets, etc) relevant to caption
+- TRENDING: Only hashtags relevant to this caption's specific topic
+- VERSION A & B: Two distinct caption variations with different approaches
+- Keep it concise and practical
+- All suggestions must directly relate to the caption content`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 512,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const content = response.content[0];
+    if (content.type !== "text") {
+      throw new Error("Unexpected response type");
+    }
+
+    const text = content.text.trim();
+    console.log("Graphics/emoji suggestions generated successfully");
+    return text;
+  } catch (error) {
+    console.error("Error suggesting graphics and emoji:", {
+      message: error.message,
+      status: error.status,
+      type: error.type,
+      error: error.error,
+    });
+    throw new Error(
+      `Failed to suggest graphics and emoji: ${error.message || "Unknown error"}`
+    );
   }
 }

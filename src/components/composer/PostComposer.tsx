@@ -6,6 +6,7 @@ import {
   useGenerateCaption,
   useSuggestHashtags,
   useCalculateViralityScore,
+  useSuggestGraphicsEmoji,
 } from "../../hooks/useAI";
 import { useComposerStore } from "../../stores/composerStore";
 import { Button } from "../common/Button";
@@ -18,7 +19,13 @@ import { VideoTextPreview } from "../editor/VideoTextPreview";
 import { TEMPLATES } from "../templates/templateData";
 import { TemplateRenderer } from "../templates/TemplateRenderer";
 import { editsApi } from "../../services/api";
-import type { Platform, Media, Template, VideoTextOverlay } from "../../types";
+import type {
+  Platform,
+  Media,
+  Template,
+  VideoTextOverlay,
+  GraphicsEmojiRecommendations,
+} from "../../types";
 
 const PLATFORM_LIMITS: Record<Platform, number> = {
   instagram: 2200,
@@ -179,8 +186,11 @@ export function PostComposer() {
   const generateCaption = useGenerateCaption();
   const suggestHashtags = useSuggestHashtags();
   const calculateViralityScore = useCalculateViralityScore();
+  const suggestGraphicsEmoji = useSuggestGraphicsEmoji();
 
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [recommendations, setRecommendations] =
+    useState<GraphicsEmojiRecommendations | null>(null);
   const [hashtagInput, setHashtagInput] = useState("");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [editingMedia, setEditingMedia] = useState<Media | null>(null);
@@ -475,6 +485,19 @@ export function PostComposer() {
     });
 
     setViralityScore(result);
+  };
+
+  const handleGetRecommendations = async () => {
+    if (!caption || !platforms[0]) return;
+
+    const result = await suggestGraphicsEmoji.mutateAsync({
+      caption,
+      hashtags,
+      platform: platforms[0],
+      industry: project?.businessInfo?.industry,
+      postType,
+    });
+    setRecommendations(result);
   };
 
   const handleAddHashtag = (e: React.KeyboardEvent) => {
@@ -926,6 +949,43 @@ export function PostComposer() {
               </p>
             )}
           </div>
+
+          {/* Graphics & Emoji Recommendations */}
+          <details className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+            <summary className="cursor-pointer font-medium text-gray-900 flex items-center justify-between">
+              <span>💡 Graphics & Emoji Suggestions</span>
+              <span className="text-sm text-gray-500">AI-powered</span>
+            </summary>
+
+            <div className="mt-4 space-y-3">
+              <Button
+                onClick={handleGetRecommendations}
+                disabled={!caption || !platforms[0]}
+                isLoading={suggestGraphicsEmoji.isPending}
+                variant="secondary"
+                size="sm"
+                className="w-full"
+              >
+                {suggestGraphicsEmoji.isPending ? "Analyzing..." : "Get Recommendations"}
+              </Button>
+
+              {suggestGraphicsEmoji.isError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-700">
+                    {suggestGraphicsEmoji.error instanceof Error
+                      ? suggestGraphicsEmoji.error.message
+                      : "Failed to get recommendations"}
+                  </p>
+                </div>
+              )}
+
+              {recommendations && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2 text-sm whitespace-pre-wrap font-mono text-xs text-gray-700">
+                  {recommendations}
+                </div>
+              )}
+            </div>
+          </details>
 
           {/* Preview */}
           <div className="card p-6">

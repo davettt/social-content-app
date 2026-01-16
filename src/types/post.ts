@@ -181,3 +181,6 @@ export type CreatePostInput = Pick<Post, "projectId" | "title"> & {
   caption?: string;
   platforms?: Platform[];
 };
+
+// Plain text recommendations in sections: EMOJI, GRAPHICS, TRENDING, VERSION A, VERSION B
+export type GraphicsEmojiRecommendations = string;
