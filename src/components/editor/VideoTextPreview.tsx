@@ -150,22 +150,27 @@ export function VideoTextPreview({
             className={`absolute transition-opacity duration-200 ${
               onSelectText ? "pointer-events-auto cursor-pointer" : ""
             } ${isSelected ? "ring-2 ring-primary-500 ring-offset-2 ring-offset-transparent" : ""}`}
-            style={{
-              ...positionStyles,
-              fontSize: overlay.fontSize,
-              fontFamily: overlay.fontFamily,
-              color: overlay.color,
-              opacity: effectiveOpacity,
-              textShadow: overlay.shadow
-                ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
-                : undefined,
-              backgroundColor: overlay.backgroundColor || undefined,
-              padding: overlay.backgroundColor ? "4px 8px" : undefined,
-              borderRadius: overlay.backgroundColor ? "4px" : undefined,
-              maxWidth: "90%",
-              wordWrap: "break-word",
-              whiteSpace: "pre-wrap",
-            }}
+            style={
+              {
+                ...positionStyles,
+                fontSize: overlay.fontSize,
+                fontFamily: overlay.fontFamily,
+                color: overlay.color,
+                opacity: effectiveOpacity,
+                textShadow: overlay.shadow
+                  ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
+                  : undefined,
+                backgroundColor: overlay.backgroundColor || undefined,
+                padding: overlay.backgroundColor ? "4px 8px" : undefined,
+                borderRadius: overlay.backgroundColor ? "4px" : undefined,
+                maxWidth: "90%",
+                wordWrap: "break-word",
+                whiteSpace: "pre-wrap",
+                WebkitTextStroke: (overlay as VideoTextOverlay).strokeWidth
+                  ? `${(overlay as VideoTextOverlay).strokeWidth}px ${(overlay as VideoTextOverlay).strokeColor || "#000000"}`
+                  : undefined,
+              } as React.CSSProperties
+            }
             onClick={() => onSelectText?.(overlay.id)}
           >
             {overlay.text || "Enter text..."}

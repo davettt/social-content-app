@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.1] - 2026-01-16
+
+### Added
+- **Text stroke/outline** - Add outline effect to text overlays with customizable stroke color and width (0-10px)
+
+### Fixed
+- **Background color export** - Background color boxes now properly render in exported videos (property was in UI but not passed to FFmpeg)
+
+### Changed
+- Deferred emoji rendering and graphics features to dedicated recommendations system (TC-89) - users will receive AI-assisted suggestions to apply emoji/graphics using native platform tools for guaranteed quality
+
 ## [1.3.0] - 2026-01-09
 
 ### Added

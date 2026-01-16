@@ -717,7 +717,9 @@ export function VideoEditor({
                   {aspectRatio.width / aspectRatio.height < 1 && (
                     <div className="p-2 bg-amber-900/30 border border-amber-700/50 rounded-lg">
                       <p className="text-xs text-amber-200">
-                        <strong>Tip:</strong> For Reels/Stories, avoid placing text at the very top or bottom — Instagram overlays UI elements there (song name, captions, buttons).
+                        <strong>Tip:</strong> For Reels/Stories, avoid placing
+                        text at the very top or bottom — Instagram overlays UI
+                        elements there (song name, captions, buttons).
                       </p>
                     </div>
                   )}
@@ -728,9 +730,24 @@ export function VideoEditor({
                       When to add text here vs Instagram?
                     </summary>
                     <div className="mt-2 p-2 bg-gray-700/50 rounded space-y-2">
-                      <p><strong className="text-gray-300">Use this app for:</strong> Brand fonts/colors, multi-platform export, batch content, client deliverables</p>
-                      <p><strong className="text-gray-300">Use Instagram for:</strong> Interactive elements (polls, links), animated effects, music-synced text, quick Stories</p>
-                      <p className="text-gray-500 italic">Text added here is baked into the video file. Instagram text is a platform overlay.</p>
+                      <p>
+                        <strong className="text-gray-300">
+                          Use this app for:
+                        </strong>{" "}
+                        Brand fonts/colors, multi-platform export, batch
+                        content, client deliverables
+                      </p>
+                      <p>
+                        <strong className="text-gray-300">
+                          Use Instagram for:
+                        </strong>{" "}
+                        Interactive elements (polls, links), animated effects,
+                        music-synced text, quick Stories
+                      </p>
+                      <p className="text-gray-500 italic">
+                        Text added here is baked into the video file. Instagram
+                        text is a platform overlay.
+                      </p>
                     </div>
                   </details>
                 </div>
@@ -978,6 +995,67 @@ export function VideoEditor({
                         </span>
                       </label>
                     </div>
+
+                    {/* Text Stroke */}
+                    {(() => {
+                      const vto = selectedText as VideoTextOverlay;
+                      const hasStroke =
+                        vto.strokeWidth != null && vto.strokeWidth > 0;
+                      return (
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-1">
+                            Text Outline
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={vto.strokeColor || "#000000"}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  strokeColor: e.target.value,
+                                })
+                              }
+                              className="w-10 h-10 rounded-lg cursor-pointer"
+                            />
+                            <button
+                              onClick={() =>
+                                updateTextOverlay(selectedText.id, {
+                                  strokeWidth: hasStroke ? 0 : 2,
+                                })
+                              }
+                              className={`flex-1 px-3 py-2 rounded-lg text-sm ${
+                                hasStroke
+                                  ? "bg-primary-600 text-white"
+                                  : "bg-gray-700 text-gray-300"
+                              }`}
+                            >
+                              {hasStroke ? "Remove" : "Add Outline"}
+                            </button>
+                          </div>
+                          {hasStroke && (
+                            <div className="mt-2">
+                              <div className="flex justify-between text-sm text-gray-300 mb-1">
+                                <span>Outline Width</span>
+                                <span>{vto.strokeWidth}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                value={vto.strokeWidth || 0}
+                                onChange={(e) =>
+                                  updateTextOverlay(selectedText.id, {
+                                    strokeWidth: Number(e.target.value),
+                                  })
+                                }
+                                min={0}
+                                max={10}
+                                step={0.5}
+                                className="w-full"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Delete Button */}
                     <Button

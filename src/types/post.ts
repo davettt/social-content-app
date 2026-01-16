@@ -135,6 +135,8 @@ export type VideoTextTiming =
 // Video-specific text overlay (extends base TextOverlay with timing)
 export interface VideoTextOverlay extends TextOverlay {
   timing: VideoTextTiming;
+  strokeColor?: string; // Text outline color
+  strokeWidth?: number; // Text outline width (0-10px)
 }
 
 export interface CaptionSuggestion {

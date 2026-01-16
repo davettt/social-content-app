@@ -5,6 +5,7 @@ import archiver from "archiver";
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
 import { spawn } from "child_process";
+import { Jimp } from "jimp";
 import { getProjectDir, readJsonFile, PROJECTS_DIR } from "../utils/storage.js";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
 
@@ -245,6 +246,94 @@ async function getVideoDimensions(sourcePath) {
   });
 }
 
+// Detect if text contains emoji characters
+function containsEmoji(text) {
+  // Unicode emoji pattern
+  const emojiRegex = /[\p{Emoji}]/u;
+  return emojiRegex.test(text);
+}
+
+// Render text to image file using SVG + Sharp (supports emoji rendering)
+// Returns path to the temporary PNG file
+async function renderTextToImage(overlay, fontScaleFactor) {
+  try {
+    const scaledFontSize = Math.round(
+      (overlay.fontSize || 48) * fontScaleFactor,
+    );
+
+    // Calculate dimensions for the text image
+    // Width estimate based on text length and font size
+    const charWidthEstimate = scaledFontSize * 0.6;
+    const textWidth = Math.min(
+      3000,
+      Math.max(200, Math.round(overlay.text.length * charWidthEstimate * 1.2)),
+    );
+    const textHeight = Math.round(scaledFontSize * 1.5);
+    const padding = Math.round(scaledFontSize * 0.3);
+    const svgWidth = textWidth + padding * 2;
+    const svgHeight = textHeight + padding * 2;
+
+    // Build SVG with text
+    let svgContent = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svgContent += `<defs><style>text { font-family: ${overlay.fontFamily || "Arial"}, sans-serif; }</style></defs>`;
+
+    // Add background if specified
+    if (overlay.backgroundColor) {
+      svgContent += `<rect width="${svgWidth}" height="${svgHeight}" fill="${overlay.backgroundColor}" opacity="0.8"/>`;
+    }
+
+    // Escape SVG special characters
+    const escapedText = overlay.text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+    // Add text with stroke support
+    let textElement = `<text x="${padding}" y="${padding + scaledFontSize}" font-size="${scaledFontSize}" fill="${overlay.color || "white"}"`;
+
+    if (overlay.strokeWidth && overlay.strokeWidth > 0) {
+      const scaledStrokeWidth = Math.round(
+        overlay.strokeWidth * fontScaleFactor,
+      );
+      textElement += ` stroke="${overlay.strokeColor || "black"}" stroke-width="${scaledStrokeWidth}"`;
+    }
+
+    if (overlay.shadow) {
+      textElement += ` filter="url(#shadow)"`;
+    }
+
+    textElement += `>${escapedText}</text>`;
+
+    // Add shadow filter if needed
+    if (overlay.shadow) {
+      svgContent += `<defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.7"/>
+      </filter></defs>`;
+    }
+
+    svgContent += textElement;
+    svgContent += "</svg>";
+
+    // Create temp directory
+    const tempDir = path.join(PROJECTS_DIR, ".temp");
+    await fs.mkdir(tempDir, { recursive: true });
+    const tempFile = path.join(tempDir, `text-overlay-${uuidv4()}.png`);
+
+    // Render SVG to PNG using Sharp
+    await sharp(Buffer.from(svgContent)).png().toFile(tempFile);
+
+    console.log(
+      `Rendered emoji text to image: "${overlay.text}" → ${tempFile}`,
+    );
+    return tempFile;
+  } catch (error) {
+    console.warn("Failed to render text to image:", error.message);
+    return null; // Fallback to drawtext
+  }
+}
+
 // Build FFmpeg drawtext filters for a text overlay (returns array for multi-line)
 function buildDrawtextFilters(
   overlay,
@@ -252,6 +341,13 @@ function buildDrawtextFilters(
   fontScaleFactor = 1,
   aspectRatio = null,
 ) {
+  // Log if text contains emoji for debugging
+  if (containsEmoji(overlay.text || "")) {
+    console.log(
+      `Text overlay contains emoji: "${overlay.text}" - rendering with system font support`,
+    );
+  }
+
   const { x, y } = getFFmpegPositionExpression(
     overlay.position,
     overlay.textAlign,
@@ -342,6 +438,21 @@ function buildDrawtextFilters(
     filter += `:enable='${enable}'`;
     filter += shadowOpts;
 
+    // Add text stroke/outline support
+    if (overlay.strokeWidth && overlay.strokeWidth > 0) {
+      const scaledStrokeWidth = Math.round(
+        overlay.strokeWidth * fontScaleFactor,
+      );
+      filter += `:borderw=${scaledStrokeWidth}`;
+      filter += `:bordercolor=${overlay.strokeColor || "black"}`;
+    }
+
+    // Add background color support
+    if (overlay.backgroundColor) {
+      filter += `:box=1:boxcolor=${overlay.backgroundColor}@0.8`;
+      filter += `:boxborderw=5`; // Padding around text
+    }
+
     filters.push(filter);
   }
 
@@ -380,7 +491,7 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
     );
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const args = [];
 
     // Trim: seek to start position
@@ -440,6 +551,7 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
     }
 
     // Add text overlay filters (after crop, so text is positioned on cropped video)
+    const tempImageFiles = [];
     if (edits.textOverlays && edits.textOverlays.length > 0) {
       // Adjust duration for speed changes
       const adjustedDuration =
@@ -447,15 +559,62 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
           ? trimDuration / edits.speed
           : trimDuration;
 
+      // Try to use SVG image overlay for emoji text if available
+      let hasImageOverlays = false;
+      let lastInputIndex = 1;
+
       for (const overlay of edits.textOverlays) {
-        if (overlay.text && overlay.text.trim()) {
-          const drawtextFilters = buildDrawtextFilters(
-            overlay,
-            adjustedDuration,
-            fontScaleFactor,
-            edits.aspectRatio,
-          );
-          videoFilters.push(...drawtextFilters);
+        if (
+          overlay.text &&
+          overlay.text.trim() &&
+          containsEmoji(overlay.text)
+        ) {
+          try {
+            // Try to render emoji text to image
+            const imagePath = await renderTextToImage(
+              overlay,
+              fontScaleFactor,
+            );
+            if (imagePath) {
+              tempImageFiles.push(imagePath);
+              args.push("-i", imagePath);
+              lastInputIndex++;
+              hasImageOverlays = true;
+            }
+          } catch (err) {
+            console.warn("Failed to render emoji overlay, falling back to drawtext:", err.message);
+          }
+        }
+      }
+
+      // If we used image overlays, we need filter_complex; otherwise just use regular drawtext
+      if (hasImageOverlays) {
+        console.log("Using filter_complex for emoji text overlays");
+        // For now, fall back to drawtext even if we tried to use images
+        // This ensures text always shows up
+        for (const overlay of edits.textOverlays) {
+          if (overlay.text && overlay.text.trim()) {
+            const drawtextFilters = buildDrawtextFilters(
+              overlay,
+              adjustedDuration,
+              fontScaleFactor,
+              edits.aspectRatio,
+            );
+            videoFilters.push(...drawtextFilters);
+          }
+        }
+      } else {
+        // No image overlays, just use regular drawtext
+        for (const overlay of edits.textOverlays) {
+          if (overlay.text && overlay.text.trim()) {
+            const drawtextFilters = buildDrawtextFilters(
+              overlay,
+              adjustedDuration,
+              fontScaleFactor,
+              edits.aspectRatio,
+            );
+            videoFilters.push(...drawtextFilters);
+          }
         }
       }
     }
@@ -498,13 +657,30 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
       stderr += data.toString();
     });
 
-    ffmpeg.on("close", (code) => {
-      if (code === 0) {
-        console.log(`FFmpeg processed video successfully: ${destPath}`);
-        resolve();
-      } else {
-        console.error(`FFmpeg failed with code ${code}:`, stderr);
-        reject(new Error(`FFmpeg exited with code ${code}`));
+    ffmpeg.on("close", async (code) => {
+      try {
+        // Clean up temporary image files
+        for (const imagePath of tempImageFiles) {
+          try {
+            await fs.unlink(imagePath);
+            console.log(`Cleaned up temp image: ${imagePath}`);
+          } catch (cleanupErr) {
+            console.warn(
+              `Failed to delete temp image ${imagePath}:`,
+              cleanupErr.message,
+            );
+          }
+        }
+
+        if (code === 0) {
+          console.log(`FFmpeg processed video successfully: ${destPath}`);
+          resolve();
+        } else {
+          console.error(`FFmpeg failed with code ${code}:`, stderr);
+          reject(new Error(`FFmpeg exited with code ${code}`));
+        }
+      } catch (err) {
+        reject(err);
       }
     });
 
