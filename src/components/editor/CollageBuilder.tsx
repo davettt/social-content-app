@@ -6,6 +6,7 @@ import {
 } from "../common/AlignmentPicker";
 import { editsApi } from "../../services/api";
 import type { Media, BrandKit, TextPosition } from "../../types";
+import type { Platform } from "../../types/project";
 import { SAFE_ZONE_MARGIN } from "../../types/post";
 
 interface TextOverlay {
@@ -52,7 +53,48 @@ const FONTS = [
   "Impact",
 ];
 
-const CANVAS_SIZE = 1080;
+const CANVAS_WIDTH = 1080; // Base width for all platforms
+
+// Platform aspect ratio options
+type AspectRatio = { width: number; height: number; label: string };
+
+const PLATFORM_ASPECT_OPTIONS: Record<Platform, AspectRatio[]> = {
+  instagram: [
+    { width: 4, height: 5, label: "4:5 Portrait" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 9, height: 16, label: "9:16 Story/Reels" },
+  ],
+  threads: [
+    { width: 4, height: 5, label: "4:5 Portrait" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 9, height: 16, label: "9:16 Story" },
+  ],
+  twitter: [
+    { width: 16, height: 9, label: "16:9 Landscape" },
+    { width: 2, height: 1, label: "2:1 Wide" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 3, height: 4, label: "3:4 Portrait" },
+  ],
+  linkedin: [
+    { width: 1.91, height: 1, label: "1.91:1 Landscape" },
+    { width: 1, height: 1, label: "1:1 Square" },
+    { width: 4, height: 5, label: "4:5 Portrait" },
+  ],
+};
+
+const PLATFORM_DEFAULT_ASPECT: Record<Platform, number> = {
+  instagram: 0, // 4:5 Portrait
+  threads: 0, // 4:5 Portrait
+  twitter: 0, // 16:9 Landscape
+  linkedin: 0, // 1.91:1 Landscape
+};
+
+const PLATFORM_ICONS: Record<Platform, string> = {
+  instagram: "📷",
+  threads: "💬",
+  twitter: "X",
+  linkedin: "in",
+};
 
 export function CollageBuilder({
   availableMedia,
@@ -94,15 +136,30 @@ export function CollageBuilder({
     { x: number; y: number; width: number; height: number }[]
   >([]);
 
+  // Platform preview state
+  const [previewPlatform, setPreviewPlatform] = useState<Platform>("instagram");
+  const [platformAspectIndex, setPlatformAspectIndex] = useState(
+    PLATFORM_DEFAULT_ASPECT.instagram,
+  );
+
   const currentLayout = LAYOUTS.find((l) => l.type === selectedLayout)!;
   const slotsNeeded = currentLayout.slots;
+  const platformOptions = PLATFORM_ASPECT_OPTIONS[previewPlatform];
+  const currentAspectRatio =
+    platformOptions[platformAspectIndex] || platformOptions[0]!;
+  const aspectRatio = `${currentAspectRatio.width} / ${currentAspectRatio.height}`;
+
+  // Calculate canvas dimensions based on platform and aspect ratio
+  const canvasHeight = Math.round(
+    CANVAS_WIDTH * (currentAspectRatio.height / currentAspectRatio.width),
+  );
 
   // Calculate preview scale based on container size
   useEffect(() => {
     const updateScale = () => {
       if (previewRef.current) {
         const containerWidth = previewRef.current.offsetWidth;
-        setPreviewScale(containerWidth / CANVAS_SIZE);
+        setPreviewScale(containerWidth / CANVAS_WIDTH);
       }
     };
     updateScale();
@@ -141,116 +198,117 @@ export function CollageBuilder({
     }
   };
 
-  // Calculate positions for each layout type
-  const getLayoutPositions = (size: number, gap: number) => {
+  // Calculate positions for each layout type (handles both square and rectangular canvases)
+  const getLayoutPositions = (width: number, height: number, gap: number) => {
     const positions: { x: number; y: number; width: number; height: number }[] =
       [];
-    const halfSize = (size - gap * 3) / 2;
-    const thirdSize = (size - gap * 4) / 3;
+    const halfWidth = (width - gap * 3) / 2;
+    const halfHeight = (height - gap * 3) / 2;
+    const thirdWidth = (width - gap * 4) / 3;
 
     switch (selectedLayout) {
       case "2x1":
         positions.push({
           x: gap,
           y: gap,
-          width: halfSize,
-          height: size - gap * 2,
+          width: halfWidth,
+          height: height - gap * 2,
         });
         positions.push({
-          x: gap * 2 + halfSize,
+          x: gap * 2 + halfWidth,
           y: gap,
-          width: halfSize,
-          height: size - gap * 2,
+          width: halfWidth,
+          height: height - gap * 2,
         });
         break;
       case "1x2":
         positions.push({
           x: gap,
           y: gap,
-          width: size - gap * 2,
-          height: halfSize,
+          width: width - gap * 2,
+          height: halfHeight,
         });
         positions.push({
           x: gap,
-          y: gap * 2 + halfSize,
-          width: size - gap * 2,
-          height: halfSize,
+          y: gap * 2 + halfHeight,
+          width: width - gap * 2,
+          height: halfHeight,
         });
         break;
       case "2x2":
-        positions.push({ x: gap, y: gap, width: halfSize, height: halfSize });
+        positions.push({ x: gap, y: gap, width: halfWidth, height: halfHeight });
         positions.push({
-          x: gap * 2 + halfSize,
+          x: gap * 2 + halfWidth,
           y: gap,
-          width: halfSize,
-          height: halfSize,
+          width: halfWidth,
+          height: halfHeight,
         });
         positions.push({
           x: gap,
-          y: gap * 2 + halfSize,
-          width: halfSize,
-          height: halfSize,
+          y: gap * 2 + halfHeight,
+          width: halfWidth,
+          height: halfHeight,
         });
         positions.push({
-          x: gap * 2 + halfSize,
-          y: gap * 2 + halfSize,
-          width: halfSize,
-          height: halfSize,
+          x: gap * 2 + halfWidth,
+          y: gap * 2 + halfHeight,
+          width: halfWidth,
+          height: halfHeight,
         });
         break;
       case "3x1":
         positions.push({
           x: gap,
           y: gap,
-          width: thirdSize,
-          height: size - gap * 2,
+          width: thirdWidth,
+          height: height - gap * 2,
         });
         positions.push({
-          x: gap * 2 + thirdSize,
+          x: gap * 2 + thirdWidth,
           y: gap,
-          width: thirdSize,
-          height: size - gap * 2,
+          width: thirdWidth,
+          height: height - gap * 2,
         });
         positions.push({
-          x: gap * 3 + thirdSize * 2,
+          x: gap * 3 + thirdWidth * 2,
           y: gap,
-          width: thirdSize,
-          height: size - gap * 2,
+          width: thirdWidth,
+          height: height - gap * 2,
         });
         break;
       case "1+2":
         positions.push({
           x: gap,
           y: gap,
-          width: halfSize,
-          height: size - gap * 2,
+          width: halfWidth,
+          height: height - gap * 2,
         });
         positions.push({
-          x: gap * 2 + halfSize,
+          x: gap * 2 + halfWidth,
           y: gap,
-          width: halfSize,
-          height: halfSize,
+          width: halfWidth,
+          height: halfHeight,
         });
         positions.push({
-          x: gap * 2 + halfSize,
-          y: gap * 2 + halfSize,
-          width: halfSize,
-          height: halfSize,
+          x: gap * 2 + halfWidth,
+          y: gap * 2 + halfHeight,
+          width: halfWidth,
+          height: halfHeight,
         });
         break;
       case "2+1":
-        positions.push({ x: gap, y: gap, width: halfSize, height: halfSize });
+        positions.push({ x: gap, y: gap, width: halfWidth, height: halfHeight });
         positions.push({
-          x: gap * 2 + halfSize,
+          x: gap * 2 + halfWidth,
           y: gap,
-          width: halfSize,
-          height: halfSize,
+          width: halfWidth,
+          height: halfHeight,
         });
         positions.push({
           x: gap,
-          y: gap * 2 + halfSize,
-          width: size - gap * 2,
-          height: halfSize,
+          y: gap * 2 + halfHeight,
+          width: width - gap * 2,
+          height: halfHeight,
         });
         break;
     }
@@ -261,20 +319,21 @@ export function CollageBuilder({
   // Render to canvas (used for both preview and export)
   const renderToCanvas = async (
     canvas: HTMLCanvasElement,
-    size: number,
+    width: number,
+    height: number,
   ): Promise<void> => {
     const ctx = canvas.getContext("2d")!;
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = width;
+    canvas.height = height;
 
     // Fill background
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, width, height);
 
     // Calculate scaled values
-    const scaledSpacing = (spacing / CANVAS_SIZE) * size * 10;
-    const scaledRadius = (borderRadius / CANVAS_SIZE) * size * 10;
-    const positions = getLayoutPositions(size, scaledSpacing);
+    const scaledSpacing = (spacing / CANVAS_WIDTH) * width * 10;
+    const scaledRadius = (borderRadius / CANVAS_WIDTH) * width * 10;
+    const positions = getLayoutPositions(width, height, scaledSpacing);
 
     // Helper function for rounded rectangles
     const roundedRect = (
@@ -321,7 +380,7 @@ export function CollageBuilder({
 
       // Get slot adjustment (default: no zoom, centered)
       const adjustment = slotAdjustments[i] || { scale: 1, panX: 0, panY: 0 };
-      const scaleFactor = size / CANVAS_SIZE; // Scale pan values for preview vs export
+      const scaleFactor = width / CANVAS_WIDTH; // Scale pan values for preview vs export
 
       try {
         const img = await loadImage(`/media/${media.originalPath}`);
@@ -366,7 +425,7 @@ export function CollageBuilder({
 
     // Draw text overlay if present
     if (textOverlay.text.trim()) {
-      const scaledFontSize = (textOverlay.fontSize / CANVAS_SIZE) * size;
+      const scaledFontSize = (textOverlay.fontSize / CANVAS_WIDTH) * width;
       ctx.font = `${textOverlay.fontWeight} ${scaledFontSize}px "${textOverlay.fontFamily}", -apple-system, BlinkMacSystemFont, sans-serif`;
       ctx.fillStyle = textOverlay.color;
 
@@ -377,8 +436,8 @@ export function CollageBuilder({
         textAlign,
       } = getPositionCoordinates(
         textOverlay.position,
-        size,
-        size,
+        width,
+        height,
         SAFE_ZONE_MARGIN,
       );
 
@@ -404,7 +463,7 @@ export function CollageBuilder({
       }
 
       // Word wrap for long text
-      const maxWidth = size * (1 - SAFE_ZONE_MARGIN * 2);
+      const maxWidth = width * (1 - SAFE_ZONE_MARGIN * 2);
       const words = textOverlay.text.split(" ");
       const lines: string[] = [];
       let currentLine = "";
@@ -450,8 +509,9 @@ export function CollageBuilder({
   // Update preview canvas whenever settings change
   useEffect(() => {
     if (!canvasRef.current || selectedImages.length === 0) return;
-    const previewSize = Math.round(CANVAS_SIZE * previewScale);
-    renderToCanvas(canvasRef.current, previewSize);
+    const previewWidth = Math.round(CANVAS_WIDTH * previewScale);
+    const previewHeight = Math.round(canvasHeight * previewScale);
+    renderToCanvas(canvasRef.current, previewWidth, previewHeight);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- renderToCanvas reads current state when called
   }, [
     selectedLayout,
@@ -462,19 +522,25 @@ export function CollageBuilder({
     textOverlay,
     previewScale,
     slotAdjustments,
+    previewPlatform,
+    platformAspectIndex,
+    canvasHeight,
   ]);
 
   // Update layout positions for hit testing (at preview scale)
   useEffect(() => {
+    const previewWidth = CANVAS_WIDTH * previewScale;
+    const previewHeight = canvasHeight * previewScale;
     const scaledSpacing =
-      (spacing / CANVAS_SIZE) * CANVAS_SIZE * previewScale * 10;
+      (spacing / CANVAS_WIDTH) * CANVAS_WIDTH * previewScale * 10;
     const positions = getLayoutPositions(
-      CANVAS_SIZE * previewScale,
+      previewWidth,
+      previewHeight,
       scaledSpacing,
     );
     setLayoutPositions(positions);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getLayoutPositions only depends on selectedLayout which is listed
-  }, [selectedLayout, spacing, previewScale]);
+  }, [selectedLayout, spacing, previewScale, canvasHeight]);
 
   // Find which slot a point is in
   const getSlotAtPoint = (clientX: number, clientY: number): number | null => {
@@ -574,7 +640,7 @@ export function CollageBuilder({
     try {
       // Create a full-size canvas for export
       const exportCanvas = document.createElement("canvas");
-      await renderToCanvas(exportCanvas, CANVAS_SIZE);
+      await renderToCanvas(exportCanvas, CANVAS_WIDTH, canvasHeight);
       const dataUrl = exportCanvas.toDataURL("image/png");
 
       // Save to server as a new media item
@@ -599,8 +665,8 @@ export function CollageBuilder({
         originalPath: result.media.originalPath,
         thumbnailPath: result.media.thumbnailPath,
         metadata: {
-          width: CANVAS_SIZE,
-          height: CANVAS_SIZE,
+          width: CANVAS_WIDTH,
+          height: canvasHeight,
         },
         userMetadata: {
           showDate: false,
@@ -683,12 +749,55 @@ export function CollageBuilder({
 
       <div className="flex-1 flex overflow-hidden">
         {/* Preview */}
-        <div className="flex-1 flex items-center justify-center p-8 bg-gray-950">
-          <div ref={previewRef} className="w-full max-w-md aspect-square">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gray-950 gap-4">
+          {/* Platform Tabs */}
+          <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
+            {(
+              ["instagram", "threads", "twitter", "linkedin"] as Platform[]
+            ).map((platform) => (
+              <button
+                key={platform}
+                onClick={() => {
+                  setPreviewPlatform(platform);
+                  setPlatformAspectIndex(PLATFORM_DEFAULT_ASPECT[platform]);
+                }}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  previewPlatform === platform
+                    ? "bg-primary-600 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <span className="mr-1">{PLATFORM_ICONS[platform]}</span>
+                {platform.charAt(0).toUpperCase() + platform.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Aspect Ratio Selector */}
+          <select
+            value={platformAspectIndex}
+            onChange={(e) => setPlatformAspectIndex(Number(e.target.value))}
+            className="bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded px-3 py-1.5"
+          >
+            {PLATFORM_ASPECT_OPTIONS[previewPlatform].map((aspect, idx) => (
+              <option key={idx} value={idx}>
+                {aspect.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Preview Container */}
+          <div
+            ref={previewRef}
+            className="w-full max-w-md rounded-lg overflow-hidden shadow-2xl"
+            style={{
+              aspectRatio: aspectRatio,
+            }}
+          >
             {selectedImages.length > 0 ? (
               <canvas
                 ref={canvasRef}
-                className="w-full h-full rounded-lg shadow-2xl"
+                className="w-full h-full"
                 style={{
                   imageRendering: "auto",
                   cursor: isDragging ? "grabbing" : "grab",
@@ -701,7 +810,7 @@ export function CollageBuilder({
               />
             ) : (
               <div
-                className="w-full h-full rounded-lg flex items-center justify-center"
+                className="w-full h-full flex items-center justify-center"
                 style={{ backgroundColor }}
               >
                 <p className="text-gray-400">Select images to preview</p>
