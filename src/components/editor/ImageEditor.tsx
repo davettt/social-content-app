@@ -248,6 +248,9 @@ export function ImageEditor({
             opacity: overlay.opacity || 1,
             width: maxTextWidth,
             splitByGrapheme: false,
+            backgroundColor: overlay.backgroundColor,
+            stroke: overlay.strokeColor,
+            strokeWidth: overlay.strokeWidth || 0,
           });
           // Store custom data on the object
           (text as unknown as { data: { id: string } }).data = {
@@ -594,6 +597,9 @@ export function ImageEditor({
         offsetX: 2,
         offsetY: 2,
       }),
+      stroke: undefined,
+      strokeWidth: 0,
+      backgroundColor: undefined,
     });
     // Store custom data on the object
     (text as unknown as { data: { id: string } }).data = { id };
@@ -610,11 +616,14 @@ export function ImageEditor({
       fontSize: 32,
       fontFamily: brandKit?.fonts?.heading || "Inter",
       color: brandKit?.primaryColor || "#ffffff",
+      backgroundColor: undefined,
       opacity: 1,
       rotation: 0,
       textAlign,
       shadow: true,
       position,
+      strokeColor: undefined,
+      strokeWidth: 0,
     };
 
     setTextOverlays((prev) => [...prev, overlay]);
@@ -738,6 +747,20 @@ export function ImageEditor({
             activeObject.set("shadow", null);
           }
           break;
+        case "backgroundColor":
+          // Empty string means clear the background
+          activeObject.set(
+            "backgroundColor",
+            value ? (value as string) : undefined,
+          );
+          break;
+        case "strokeColor":
+          // Empty string means clear the stroke
+          activeObject.set("stroke", value ? (value as string) : undefined);
+          break;
+        case "strokeWidth":
+          activeObject.set("strokeWidth", value as number);
+          break;
       }
       canvas?.renderAll();
 
@@ -791,6 +814,18 @@ export function ImageEditor({
 
   // Reset to original image
   const handleReset = () => {
+    const canvas = fabricCanvasRef.current;
+
+    // Remove all text objects from canvas
+    if (canvas) {
+      const objects = canvas.getObjects();
+      const textObjects = objects.filter(
+        (obj) => obj instanceof IText || obj instanceof Textbox,
+      );
+      textObjects.forEach((obj) => canvas.remove(obj));
+      canvas.renderAll();
+    }
+
     setAdjustments({
       brightness: 0,
       contrast: 0,
@@ -1316,6 +1351,134 @@ export function ImageEditor({
                           updateTextProperty("fill", e.target.value)
                         }
                         className="w-full h-10 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm text-gray-300 block mb-2">
+                        Background Color
+                      </label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <button
+                          onClick={() =>
+                            updateTextProperty("backgroundColor", "")
+                          }
+                          className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                            !selectedText.backgroundColor
+                              ? "border-white scale-110"
+                              : "border-gray-600 hover:border-gray-400"
+                          }`}
+                          style={{
+                            background:
+                              "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                          }}
+                          title="None"
+                        />
+                        {getBrandColors()
+                          .slice(0, 7)
+                          .map((c) => (
+                            <button
+                              key={c.color}
+                              onClick={() =>
+                                updateTextProperty("backgroundColor", c.color)
+                              }
+                              className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                selectedText.backgroundColor?.toLowerCase() ===
+                                c.color.toLowerCase()
+                                  ? "border-white scale-110"
+                                  : "border-gray-600 hover:border-gray-400"
+                              }`}
+                              style={{ backgroundColor: c.color }}
+                              title={c.label}
+                            />
+                          ))}
+                      </div>
+                      {selectedText.backgroundColor && (
+                        <input
+                          type="color"
+                          value={selectedText.backgroundColor}
+                          onChange={(e) =>
+                            updateTextProperty(
+                              "backgroundColor",
+                              e.target.value,
+                            )
+                          }
+                          className="w-full h-10 rounded-lg cursor-pointer"
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-sm text-gray-300 block mb-2">
+                        Text Outline Color
+                      </label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <button
+                          onClick={() => {
+                            updateTextProperty("strokeColor", "");
+                            updateTextProperty("strokeWidth", 0);
+                          }}
+                          className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                            !selectedText.strokeColor ||
+                            !selectedText.strokeWidth
+                              ? "border-white scale-110"
+                              : "border-gray-600 hover:border-gray-400"
+                          }`}
+                          style={{
+                            background:
+                              "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                          }}
+                          title="None"
+                        />
+                        {getBrandColors()
+                          .slice(0, 7)
+                          .map((c) => (
+                            <button
+                              key={c.color}
+                              onClick={() =>
+                                updateTextProperty("strokeColor", c.color)
+                              }
+                              className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                selectedText.strokeColor?.toLowerCase() ===
+                                  c.color.toLowerCase() &&
+                                selectedText.strokeWidth
+                                  ? "border-white scale-110"
+                                  : "border-gray-600 hover:border-gray-400"
+                              }`}
+                              style={{ backgroundColor: c.color }}
+                              title={c.label}
+                            />
+                          ))}
+                      </div>
+                      {selectedText.strokeColor && selectedText.strokeWidth ? (
+                        <input
+                          type="color"
+                          value={selectedText.strokeColor}
+                          onChange={(e) =>
+                            updateTextProperty("strokeColor", e.target.value)
+                          }
+                          className="w-full h-10 rounded-lg cursor-pointer"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-sm text-gray-400 mb-1">
+                        <span>Outline Width</span>
+                        <span>{selectedText.strokeWidth || 0}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="10"
+                        value={selectedText.strokeWidth || 0}
+                        onChange={(e) =>
+                          updateTextProperty(
+                            "strokeWidth",
+                            Number(e.target.value),
+                          )
+                        }
+                        className="w-full"
                       />
                     </div>
 

@@ -257,9 +257,12 @@ export const editsApi = {
         fontFamily: string;
         fontWeight: string;
         color: string;
+        backgroundColor?: string;
         textAlign: string;
         shadow: boolean;
         opacity: number;
+        strokeColor?: string;
+        strokeWidth?: number;
         position: string;
       }>;
     },
@@ -294,9 +297,12 @@ export const editsApi = {
         fontFamily: string;
         fontWeight: string;
         color: string;
+        backgroundColor?: string;
         textAlign: string;
         shadow: boolean;
         opacity: number;
+        strokeColor?: string;
+        strokeWidth?: number;
         position: string;
       }>;
       editedAt?: string;

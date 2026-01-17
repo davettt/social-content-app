@@ -120,6 +120,8 @@ export interface TextOverlay {
   rotation: number;
   textAlign: "left" | "center" | "right";
   shadow?: boolean;
+  strokeColor?: string; // Text outline color
+  strokeWidth?: number; // Text outline width (0-10px)
   /** Preset position from 3x3 grid (if set, x/y are calculated from this) */
   position?: TextPosition;
 }

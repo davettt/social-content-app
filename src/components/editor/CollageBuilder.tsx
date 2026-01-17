@@ -15,8 +15,11 @@ interface TextOverlay {
   fontFamily: string;
   fontWeight: "normal" | "bold";
   color: string;
+  backgroundColor?: string;
   position: TextPosition;
   shadow: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
 }
 
 interface SlotAdjustment {
@@ -121,8 +124,11 @@ export function CollageBuilder({
     fontFamily: brandKit?.fonts?.heading || "Inter",
     fontWeight: "bold",
     color: "#ffffff",
+    backgroundColor: undefined,
     position: "bottom-center",
     shadow: false,
+    strokeColor: undefined,
+    strokeWidth: 0,
   });
 
   // Pan/zoom state for each slot
@@ -453,14 +459,6 @@ export function CollageBuilder({
 
       ctx.textAlign = textAlign;
 
-      // Apply shadow if enabled
-      if (textOverlay.shadow) {
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-      }
-
       // Set text baseline based on vertical position
       const isTop = textOverlay.position.startsWith("top");
       const isBottom = textOverlay.position.startsWith("bottom");
@@ -499,6 +497,76 @@ export function CollageBuilder({
       } else if (isBottom) {
         // Bottom - move up for additional lines
         startY = posY - (lines.length - 1) * lineHeight;
+      }
+
+      // Draw background if enabled
+      if (textOverlay.backgroundColor) {
+        // Calculate bounding box for background
+        let maxTextWidth = 0;
+        lines.forEach((line) => {
+          const metrics = ctx.measureText(line);
+          maxTextWidth = Math.max(maxTextWidth, metrics.width);
+        });
+
+        const padding = scaledFontSize * 0.3;
+        const bgX =
+          textAlign === "center"
+            ? posX - maxTextWidth / 2 - padding
+            : textAlign === "right"
+              ? posX - maxTextWidth - padding
+              : posX - padding;
+
+        // Adjust bgY based on text baseline
+        let bgY: number;
+        if (isTop) {
+          // Top baseline: text starts at startY
+          bgY = startY - padding;
+        } else if (isBottom) {
+          // Bottom baseline: text ends at startY, so background starts above
+          bgY = startY - scaledFontSize - padding;
+        } else {
+          // Middle baseline: text centered at startY
+          bgY = startY - scaledFontSize / 2 - padding;
+        }
+
+        const bgWidth = maxTextWidth + padding * 2;
+        // Total height accounts for all lines
+        const totalTextHeight = isTop
+          ? lineHeight * lines.length
+          : isBottom
+            ? scaledFontSize + (lines.length - 1) * lineHeight
+            : scaledFontSize + (lines.length - 1) * lineHeight;
+        const bgHeight = totalTextHeight + padding * 2;
+        const bgRadius = scaledFontSize * 0.2;
+
+        ctx.fillStyle = textOverlay.backgroundColor;
+        ctx.beginPath();
+        ctx.roundRect(bgX, bgY, bgWidth, bgHeight, bgRadius);
+        ctx.fill();
+      }
+
+      // Reset fill style to text color after drawing background
+      ctx.fillStyle = textOverlay.color;
+
+      // Apply shadow if enabled (after background, so shadow only affects text)
+      if (textOverlay.shadow) {
+        ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+      }
+
+      // Draw stroke if enabled
+      if (
+        textOverlay.strokeColor &&
+        textOverlay.strokeWidth &&
+        textOverlay.strokeWidth > 0
+      ) {
+        ctx.strokeStyle = textOverlay.strokeColor;
+        ctx.lineWidth = textOverlay.strokeWidth;
+        lines.forEach((line, i) => {
+          ctx.strokeText(line, posX, startY + i * lineHeight);
+        });
       }
 
       // Draw each line
@@ -1014,6 +1082,147 @@ export function CollageBuilder({
                     setTextOverlay({ ...textOverlay, color })
                   }
                 />
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Background Color
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <button
+                      onClick={() =>
+                        setTextOverlay({
+                          ...textOverlay,
+                          backgroundColor: undefined,
+                        })
+                      }
+                      className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                        !textOverlay.backgroundColor
+                          ? "border-white scale-110"
+                          : "border-gray-600 hover:border-gray-400"
+                      }`}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                      }}
+                      title="None"
+                    />
+                    {getBrandColors()
+                      .slice(0, 7)
+                      .map((c) => (
+                        <button
+                          key={c.color}
+                          onClick={() =>
+                            setTextOverlay({
+                              ...textOverlay,
+                              backgroundColor: c.color,
+                            })
+                          }
+                          className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                            textOverlay.backgroundColor?.toLowerCase() ===
+                            c.color.toLowerCase()
+                              ? "border-white scale-110"
+                              : "border-gray-600 hover:border-gray-400"
+                          }`}
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                  </div>
+                  {textOverlay.backgroundColor && (
+                    <input
+                      type="color"
+                      value={textOverlay.backgroundColor}
+                      onChange={(e) =>
+                        setTextOverlay({
+                          ...textOverlay,
+                          backgroundColor: e.target.value,
+                        })
+                      }
+                      className="w-full h-10 rounded-lg cursor-pointer"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Text Outline Color
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <button
+                      onClick={() =>
+                        setTextOverlay({
+                          ...textOverlay,
+                          strokeColor: undefined,
+                          strokeWidth: 0,
+                        })
+                      }
+                      className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                        !textOverlay.strokeColor || !textOverlay.strokeWidth
+                          ? "border-white scale-110"
+                          : "border-gray-600 hover:border-gray-400"
+                      }`}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                      }}
+                      title="None"
+                    />
+                    {getBrandColors()
+                      .slice(0, 7)
+                      .map((c) => (
+                        <button
+                          key={c.color}
+                          onClick={() =>
+                            setTextOverlay({
+                              ...textOverlay,
+                              strokeColor: c.color,
+                            })
+                          }
+                          className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                            textOverlay.strokeColor?.toLowerCase() ===
+                              c.color.toLowerCase() && textOverlay.strokeWidth
+                              ? "border-white scale-110"
+                              : "border-gray-600 hover:border-gray-400"
+                          }`}
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                  </div>
+                  {textOverlay.strokeColor && textOverlay.strokeWidth ? (
+                    <input
+                      type="color"
+                      value={textOverlay.strokeColor}
+                      onChange={(e) =>
+                        setTextOverlay({
+                          ...textOverlay,
+                          strokeColor: e.target.value,
+                        })
+                      }
+                      className="w-full h-10 rounded-lg cursor-pointer"
+                    />
+                  ) : null}
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-sm text-gray-400 mb-1">
+                    <span>Outline Width</span>
+                    <span>{textOverlay.strokeWidth || 0}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    value={textOverlay.strokeWidth || 0}
+                    onChange={(e) =>
+                      setTextOverlay({
+                        ...textOverlay,
+                        strokeWidth: Number(e.target.value),
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
 
                 <div>
                   <label className="flex items-center gap-3 cursor-pointer">

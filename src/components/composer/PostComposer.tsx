@@ -349,10 +349,13 @@ export function PostComposer() {
               fontSize: overlay.fontSize,
               fontFamily: overlay.fontFamily,
               color: overlay.color,
+              backgroundColor: overlay.backgroundColor,
               opacity: overlay.opacity,
               rotation: 0, // Default rotation
               textAlign: overlay.textAlign as "left" | "center" | "right",
               shadow: overlay.shadow,
+              strokeColor: overlay.strokeColor,
+              strokeWidth: overlay.strokeWidth,
               position: overlay.position as
                 | "top-left"
                 | "top-center"
