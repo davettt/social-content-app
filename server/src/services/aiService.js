@@ -371,7 +371,7 @@ Rules:
       error: error.error,
     });
     throw new Error(
-      `Failed to suggest graphics and emoji: ${error.message || "Unknown error"}`
+      `Failed to suggest graphics and emoji: ${error.message || "Unknown error"}`,
     );
   }
 }

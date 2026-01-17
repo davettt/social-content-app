@@ -966,7 +966,9 @@ export function PostComposer() {
                 size="sm"
                 className="w-full"
               >
-                {suggestGraphicsEmoji.isPending ? "Analyzing..." : "Get Recommendations"}
+                {suggestGraphicsEmoji.isPending
+                  ? "Analyzing..."
+                  : "Get Recommendations"}
               </Button>
 
               {suggestGraphicsEmoji.isError && (

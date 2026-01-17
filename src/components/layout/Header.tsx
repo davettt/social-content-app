@@ -2,11 +2,8 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { useProject } from "../../hooks/useProjects";
 
 export function Header() {
-  const location = useLocation();
   const { projectId } = useParams();
   const { data: project } = useProject(projectId);
-
-  const isHome = location.pathname === "/";
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -54,12 +51,6 @@ export function Header() {
               </NavLink>
               <NavLink to={`/projects/${projectId}/export`}>Export</NavLink>
             </nav>
-          )}
-
-          {isHome && (
-            <Link to="/projects/new" className="btn-primary">
-              New Project
-            </Link>
           )}
         </div>
       </div>
