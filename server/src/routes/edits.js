@@ -343,7 +343,7 @@ router.post("/:projectId/collage", async (req, res, next) => {
     const mediaItem = {
       id: mediaId,
       projectId,
-      type: "collage",
+      type: "image",
       filename: `Collage ${new Date().toLocaleDateString()}`,
       originalPath: `${projectId}/media/originals/${filename}`,
       thumbnailPath: `${projectId}/media/thumbnails/${thumbnailFilename}`,

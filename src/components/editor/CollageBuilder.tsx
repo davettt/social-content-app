@@ -236,7 +236,12 @@ export function CollageBuilder({
         });
         break;
       case "2x2":
-        positions.push({ x: gap, y: gap, width: halfWidth, height: halfHeight });
+        positions.push({
+          x: gap,
+          y: gap,
+          width: halfWidth,
+          height: halfHeight,
+        });
         positions.push({
           x: gap * 2 + halfWidth,
           y: gap,
@@ -297,7 +302,12 @@ export function CollageBuilder({
         });
         break;
       case "2+1":
-        positions.push({ x: gap, y: gap, width: halfWidth, height: halfHeight });
+        positions.push({
+          x: gap,
+          y: gap,
+          width: halfWidth,
+          height: halfHeight,
+        });
         positions.push({
           x: gap * 2 + halfWidth,
           y: gap,
