@@ -656,4 +656,285 @@ router.post("/:projectId/stitch", async (req, res, next) => {
   }
 });
 
+// Create slideshow video from photos using FFmpeg xfade transitions
+async function createSlideshowWithFFmpeg(
+  photos,
+  transition,
+  transitionDuration,
+  destPath,
+  aspectRatio = { width: 9, height: 16 },
+) {
+  return new Promise((resolve, reject) => {
+    // Build FFmpeg command for slideshow with transitions
+    // Using xfade filter for transitions between photos
+
+    const inputArgs = [];
+    const filterParts = [];
+
+    // Ensure transition doesn't exceed photo duration (minimum 0.5s visible time per photo)
+    const minPhotoDuration = Math.min(...photos.map((p) => p.duration));
+    const effectiveTransitionDuration = Math.min(
+      transitionDuration,
+      minPhotoDuration - 0.5,
+    );
+
+    // Calculate the total expected video duration using effective transition
+    // Total = sum of all durations - (number of transitions * transition duration)
+    const totalDuration =
+      photos.reduce((sum, p) => sum + p.duration, 0) -
+      (photos.length - 1) * effectiveTransitionDuration;
+
+    // Add each photo as input with loop
+    // Each input needs to last long enough for the entire video
+    // Using total duration for all inputs ensures FFmpeg has frames throughout
+    photos.forEach((photo) => {
+      inputArgs.push(
+        "-loop",
+        "1",
+        "-t",
+        totalDuration.toFixed(2),
+        "-i",
+        photo.sourcePath,
+      );
+    });
+
+    // Build filter_complex for transitions
+    // Calculate output dimensions based on aspect ratio
+    // Use 1080 as base width for portrait, 1920 for landscape
+    let width, height;
+    if (aspectRatio.height > aspectRatio.width) {
+      // Portrait (e.g., 9:16, 4:5)
+      width = 1080;
+      height = Math.round((1080 * aspectRatio.height) / aspectRatio.width);
+    } else if (aspectRatio.width > aspectRatio.height) {
+      // Landscape (e.g., 16:9, 1.91:1)
+      height = 1080;
+      width = Math.round((1080 * aspectRatio.width) / aspectRatio.height);
+    } else {
+      // Square (1:1)
+      width = 1080;
+      height = 1080;
+    }
+    console.log(
+      `Slideshow dimensions: ${width}x${height} (aspect ${aspectRatio.width}:${aspectRatio.height})`,
+    );
+
+    photos.forEach((_, i) => {
+      // Scale to cover entire frame and crop to exact dimensions (no black bars)
+      filterParts.push(
+        `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=30[v${i}]`,
+      );
+    });
+
+    if (photos.length === 2) {
+      // Simple case: just one transition
+      const offset = Math.max(
+        0,
+        photos[0].duration - effectiveTransitionDuration,
+      );
+      filterParts.push(
+        `[v0][v1]xfade=transition=${transition}:duration=${effectiveTransitionDuration.toFixed(2)}:offset=${offset.toFixed(2)}[outv]`,
+      );
+    } else {
+      // Multiple photos: chain xfade transitions
+      let currentLabel = "v0";
+      let currentOffset = Math.max(
+        0,
+        photos[0].duration - effectiveTransitionDuration,
+      );
+
+      for (let i = 1; i < photos.length; i++) {
+        const nextLabel = `v${i}`;
+        const outputLabel = i === photos.length - 1 ? "outv" : `xf${i}`;
+
+        filterParts.push(
+          `[${currentLabel}][${nextLabel}]xfade=transition=${transition}:duration=${effectiveTransitionDuration.toFixed(2)}:offset=${currentOffset.toFixed(2)}[${outputLabel}]`,
+        );
+
+        currentLabel = outputLabel;
+        if (i < photos.length - 1) {
+          // Accumulate offset: previous offset + next clip duration - transition overlap
+          currentOffset =
+            currentOffset + photos[i].duration - effectiveTransitionDuration;
+        }
+      }
+    }
+
+    console.log(
+      `Slideshow params: effectiveTransition=${effectiveTransitionDuration.toFixed(2)}s, totalDuration=${totalDuration.toFixed(2)}s`,
+    );
+
+    const filterComplex = filterParts.join(";");
+
+    const args = [
+      ...inputArgs,
+      "-filter_complex",
+      filterComplex,
+      "-map",
+      "[outv]",
+      "-t",
+      totalDuration.toFixed(2), // Limit output duration to prevent extended last slide
+      "-c:v",
+      "libx264",
+      "-preset",
+      "medium",
+      "-crf",
+      "23",
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      "-y",
+      destPath,
+    ];
+
+    console.log(`FFmpeg slideshow command: ffmpeg ${args.join(" ")}`);
+
+    const ffmpeg = spawn("ffmpeg", args);
+
+    let stderr = "";
+    ffmpeg.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        console.log(`FFmpeg created slideshow successfully: ${destPath}`);
+        resolve({ width, height });
+      } else {
+        console.error(`FFmpeg slideshow failed with code ${code}:`, stderr);
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (err) => {
+      console.error("FFmpeg spawn error:", err);
+      reject(err);
+    });
+  });
+}
+
+// POST /api/edits/:projectId/slideshow - Create slideshow video from photos
+router.post("/:projectId/slideshow", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { photos, transition, transitionDuration, aspectRatio } = req.body;
+
+    if (!photos || !Array.isArray(photos) || photos.length < 2) {
+      throw new ValidationError(
+        "At least 2 photos are required for a slideshow",
+      );
+    }
+
+    const projectDir = await getProjectDir(projectId);
+    const originalsDir = path.join(projectDir, "media", "originals");
+    const thumbnailsDir = path.join(projectDir, "media", "thumbnails");
+
+    // Ensure directories exist
+    await fs.mkdir(originalsDir, { recursive: true });
+    await fs.mkdir(thumbnailsDir, { recursive: true });
+
+    // Load media index
+    const index = await getMediaIndex(projectId);
+
+    // Prepare photo info
+    const photoInfos = [];
+    let totalDuration = 0;
+
+    for (const photo of photos) {
+      const mediaItem = index.media.find((m) => m.id === photo.mediaId);
+      if (!mediaItem) {
+        throw new ValidationError(`Media not found: ${photo.mediaId}`);
+      }
+      if (mediaItem.type !== "image") {
+        throw new ValidationError(`Media ${photo.mediaId} is not an image`);
+      }
+
+      // Use original path if useOriginal is true, otherwise use processed if available
+      // Note: paths in index already include projectId prefix, so use PROJECTS_DIR as base
+      let imagePath;
+      if (photo.useOriginal) {
+        imagePath = mediaItem.originalPath;
+      } else {
+        imagePath = mediaItem.processedPath || mediaItem.originalPath;
+      }
+      const sourcePath = path.join(PROJECTS_DIR, imagePath);
+
+      photoInfos.push({
+        mediaId: photo.mediaId,
+        sourcePath,
+        duration: photo.duration || 4,
+      });
+
+      totalDuration += photo.duration || 4;
+    }
+
+    // Subtract overlapping transition time from total
+    totalDuration -= (photos.length - 1) * (transitionDuration || 1);
+
+    // Generate new media ID and output path
+    const mediaId = uuidv4();
+    const filename = `slideshow-${mediaId}.mp4`;
+    const outputPath = path.join(originalsDir, filename);
+
+    // Create the slideshow with aspect ratio
+    const outputAspect = aspectRatio || { width: 9, height: 16 };
+    console.log(
+      `Creating slideshow with ${photoInfos.length} photos (transition: ${transition}, duration: ${totalDuration}s, aspect: ${outputAspect.width}:${outputAspect.height})`,
+    );
+    const { width, height } = await createSlideshowWithFFmpeg(
+      photoInfos,
+      transition || "fade",
+      transitionDuration || 1,
+      outputPath,
+      outputAspect,
+    );
+
+    // Generate thumbnail from the slideshow video
+    const thumbnailFilename = `${mediaId}.jpg`;
+    const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
+    await getVideoThumbnail(outputPath, thumbnailPath, 1);
+
+    // Create media item
+    const mediaItem = {
+      id: mediaId,
+      projectId,
+      type: "video",
+      filename: `slideshow-${new Date().toISOString().slice(0, 10)}.mp4`,
+      originalPath: `${projectId}/media/originals/${filename}`,
+      thumbnailPath: `${projectId}/media/thumbnails/${thumbnailFilename}`,
+      metadata: {
+        width,
+        height,
+        duration: totalDuration,
+        slideshow: {
+          photoCount: photos.length,
+          transition,
+          transitionDuration,
+        },
+      },
+      userMetadata: {
+        showDate: false,
+        showTime: false,
+        showLocation: false,
+        customCaption: "",
+      },
+      uploadedAt: new Date().toISOString(),
+    };
+
+    // Add to media index
+    index.media.push(mediaItem);
+    await writeMediaIndex(projectId, index);
+
+    console.log(`Created slideshow video: ${mediaId}`);
+
+    res.status(201).json({
+      success: true,
+      media: mediaItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

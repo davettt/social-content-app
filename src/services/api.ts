@@ -401,4 +401,26 @@ export const editsApi = {
       method: "POST",
       body: JSON.stringify({ clips }),
     }),
+
+  // Photo slideshow
+  createSlideshow: (
+    projectId: string,
+    data: {
+      photos: Array<{
+        mediaId: string;
+        duration: number;
+        useOriginal?: boolean; // If true, use original image without edits
+      }>;
+      transition: string;
+      transitionDuration: number;
+      aspectRatio?: { width: number; height: number };
+    },
+  ) =>
+    fetchJson<{
+      success: boolean;
+      media: Media;
+    }>(`${API_BASE}/edits/${projectId}/slideshow`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

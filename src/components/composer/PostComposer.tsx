@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProject } from "../../hooks/useProjects";
 import { useMedia } from "../../hooks/useMedia";
 import {
@@ -87,6 +88,16 @@ const getPlatformDimensions = (
   return options[0] as AspectRatio;
 };
 
+// Slideshow transition options
+type SlideshowTransition = "fade" | "wipeleft" | "slideright" | "circlecrop";
+
+const SLIDESHOW_TRANSITIONS: { value: SlideshowTransition; label: string }[] = [
+  { value: "fade", label: "Fade" },
+  { value: "wipeleft", label: "Wipe" },
+  { value: "slideright", label: "Slide" },
+  { value: "circlecrop", label: "Circle" },
+];
+
 const CAPTION_STYLES = [
   { id: "auto", label: "Auto", description: "Let AI decide the best style" },
   {
@@ -154,6 +165,7 @@ type PostType = (typeof POST_TYPES)[number]["id"];
 export function PostComposer() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: project, isLoading: projectLoading } = useProject(projectId);
   const { data: allMedia, isLoading: mediaLoading } = useMedia(projectId);
@@ -214,6 +226,16 @@ export function PostComposer() {
     Record<string, { textOverlays: VideoTextOverlay[] }>
   >({});
   const [showTemplateRenderer, setShowTemplateRenderer] = useState(false);
+  // Slideshow creation state
+  const [showSlideshowSettings, setShowSlideshowSettings] = useState(false);
+  const [slideshowTransition, setSlideshowTransition] =
+    useState<SlideshowTransition>("fade");
+  const [slideshowTransitionDuration, setSlideshowTransitionDuration] =
+    useState(1);
+  const [slideshowPhotoDuration, setSlideshowPhotoDuration] = useState(4);
+  const [isCreatingSlideshow, setIsCreatingSlideshow] = useState(false);
+  const [slideshowError, setSlideshowError] = useState<string | null>(null);
+  const [slideshowSuccess, setSlideshowSuccess] = useState(false);
 
   // Update a template prompt value
   const updatePromptValue = (index: number, value: string) => {
@@ -515,6 +537,66 @@ export function PostComposer() {
 
   const captionWithHashtags = `${caption}${hashtags.length > 0 ? "\n\n" + hashtags.map((h) => `#${h}`).join(" ") : ""}`;
 
+  // Get images only from selected media (for slideshow)
+  const selectedImages = selectedMedia.filter((m) => m.type === "image");
+
+  // Create slideshow from selected images
+  const handleCreateSlideshow = async () => {
+    if (!projectId || selectedImages.length < 2) return;
+
+    setIsCreatingSlideshow(true);
+    setSlideshowError(null);
+    setSlideshowSuccess(false);
+
+    try {
+      // Build photos array - each photo uses the same duration
+      // useOriginal is true if there are NO edits in the composer for this image
+      const photos = selectedImages.map((media) => ({
+        mediaId: media.id,
+        duration: slideshowPhotoDuration,
+        useOriginal: !editedImages[media.id]?.dataUrl,
+      }));
+
+      // Get current aspect ratio from platform settings
+      const currentAspect = getPlatformDimensions(
+        previewPlatform,
+        platformAspects[previewPlatform],
+      );
+
+      const result = await editsApi.createSlideshow(projectId, {
+        photos,
+        transition: slideshowTransition,
+        transitionDuration: slideshowTransitionDuration,
+        aspectRatio: {
+          width: currentAspect.width,
+          height: currentAspect.height,
+        },
+      });
+
+      // Remove the individual images that were used
+      selectedImages.forEach((img) => removeMedia(img.id));
+
+      // Invalidate media query so it refetches with the new slideshow
+      await queryClient.invalidateQueries({ queryKey: ["media", projectId] });
+
+      // Add the slideshow video to composer's selected media (after refetch)
+      addMedia(result.media.id);
+
+      // Show success and close settings
+      setSlideshowSuccess(true);
+      setShowSlideshowSettings(false);
+
+      // Clear success after 3 seconds
+      setTimeout(() => setSlideshowSuccess(false), 3000);
+    } catch (err) {
+      setSlideshowError(
+        err instanceof Error ? err.message : "Failed to create slideshow",
+      );
+    } finally {
+      setIsCreatingSlideshow(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -529,6 +611,35 @@ export function PostComposer() {
           Export
         </Button>
       </div>
+
+      {/* Slideshow Success Banner */}
+      {slideshowSuccess && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg
+              className="w-5 h-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <div>
+            <p className="font-medium text-green-800">
+              Slideshow created successfully!
+            </p>
+            <p className="text-sm text-green-600">
+              Your slideshow video has been added to the media below.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Template Banner */}
       {activeTemplate && (
@@ -615,15 +726,27 @@ export function PostComposer() {
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900">Media</h2>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowMediaPicker(true)}
-              >
-                {selectedMedia.length > 0 || generatedImages.length > 0
-                  ? "Add More"
-                  : "Add Media"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Create Slideshow button - shown when 2+ images selected */}
+                {selectedImages.length >= 2 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowSlideshowSettings(true)}
+                  >
+                    Create Slideshow
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowMediaPicker(true)}
+                >
+                  {selectedMedia.length > 0 || generatedImages.length > 0
+                    ? "Add More"
+                    : "Add Media"}
+                </Button>
+              </div>
             </div>
 
             {selectedMedia.length > 0 || generatedImages.length > 0 ? (
@@ -1106,7 +1229,7 @@ export function PostComposer() {
                             <div className="relative w-full h-full">
                               <video
                                 src={`/media/${currentItem.media.originalPath}`}
-                                className="w-full h-full object-cover object-center"
+                                className="w-full h-full object-contain"
                                 controls
                                 muted
                               />
@@ -1474,6 +1597,183 @@ export function PostComposer() {
           onClose={() => setShowTemplateRenderer(false)}
         />
       )}
+
+      {/* Slideshow Settings Modal */}
+      <Modal
+        isOpen={showSlideshowSettings}
+        onClose={() => setShowSlideshowSettings(false)}
+        title="Create Slideshow"
+        size="md"
+      >
+        <div className="p-6 space-y-6">
+          {/* Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              Create a video slideshow from your {selectedImages.length}{" "}
+              selected images. The slideshow will use your current edits and the
+              selected aspect ratio (
+              {
+                getPlatformDimensions(
+                  previewPlatform,
+                  platformAspects[previewPlatform],
+                ).label
+              }
+              ).
+            </p>
+          </div>
+
+          {/* Selected Images Preview */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Images ({selectedImages.length})
+            </label>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {selectedImages.map((media, index) => (
+                <div key={media.id} className="relative flex-shrink-0">
+                  <img
+                    src={
+                      editedImages[media.id]?.dataUrl ||
+                      `/media/${media.thumbnailPath}`
+                    }
+                    alt={`Photo ${index + 1}`}
+                    className="w-16 h-16 object-cover rounded-lg"
+                  />
+                  <div className="absolute top-0 left-0 bg-black/60 text-white text-xs px-1.5 rounded-tl-lg rounded-br">
+                    {index + 1}
+                  </div>
+                  {editedImages[media.id]?.dataUrl && (
+                    <div
+                      className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full"
+                      title="Edited"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Transition Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Transition Effect
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {SLIDESHOW_TRANSITIONS.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setSlideshowTransition(t.value)}
+                  className={`px-3 py-2 text-sm rounded-lg border-2 transition-colors ${
+                    slideshowTransition === t.value
+                      ? "border-primary-500 bg-primary-50 text-primary-700"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Photo Duration */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Photo Duration: {slideshowPhotoDuration}s
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              step="0.5"
+              value={slideshowPhotoDuration}
+              onChange={(e) =>
+                setSlideshowPhotoDuration(parseFloat(e.target.value))
+              }
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>1s</span>
+              <span>10s</span>
+            </div>
+          </div>
+
+          {/* Transition Duration */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Transition Duration: {slideshowTransitionDuration}s
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max={Math.min(3, slideshowPhotoDuration - 0.5)}
+              step="0.5"
+              value={slideshowTransitionDuration}
+              onChange={(e) =>
+                setSlideshowTransitionDuration(parseFloat(e.target.value))
+              }
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>0.5s</span>
+              <span>{Math.min(3, slideshowPhotoDuration - 0.5)}s</span>
+            </div>
+          </div>
+
+          {/* Duration Summary */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-gray-500">Photos:</span>
+                <span className="ml-2 font-medium">
+                  {selectedImages.length}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Transitions:</span>
+                <span className="ml-2 font-medium">
+                  {selectedImages.length - 1}
+                </span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-500">Total Duration:</span>
+                <span className="ml-2 font-medium">
+                  {(
+                    selectedImages.length * slideshowPhotoDuration -
+                    (selectedImages.length - 1) * slideshowTransitionDuration
+                  ).toFixed(1)}
+                  s
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Error */}
+          {slideshowError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-700">{slideshowError}</p>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setShowSlideshowSettings(false)}
+              className="flex-1"
+              disabled={isCreatingSlideshow}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateSlideshow}
+              className="flex-1"
+              isLoading={isCreatingSlideshow}
+              disabled={isCreatingSlideshow}
+            >
+              {isCreatingSlideshow ? "Creating..." : "Create Slideshow"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

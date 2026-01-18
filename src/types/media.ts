@@ -30,6 +30,8 @@ export interface Media {
   filename: string;
   originalPath: string;
   thumbnailPath: string;
+  processedPath?: string; // Path to processed/edited version
+  hasEdits?: boolean; // Whether the media has been edited
   metadata: MediaMetadata;
   userMetadata: UserMediaMetadata;
   uploadedAt: string;
