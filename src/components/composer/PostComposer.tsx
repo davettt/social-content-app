@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProject } from "../../hooks/useProjects";
 import { useMedia } from "../../hooks/useMedia";
@@ -17,13 +17,10 @@ import { PageLoader } from "../common/LoadingSpinner";
 import { ImageEditor } from "../editor/ImageEditor";
 import { VideoEditor } from "../editor/VideoEditor";
 import { VideoTextPreview } from "../editor/VideoTextPreview";
-import { TEMPLATES } from "../templates/templateData";
-import { TemplateRenderer } from "../templates/TemplateRenderer";
 import { editsApi } from "../../services/api";
 import type {
   Platform,
   Media,
-  Template,
   VideoTextOverlay,
   GraphicsEmojiRecommendations,
 } from "../../types";
@@ -166,7 +163,6 @@ export function PostComposer() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { data: project, isLoading: projectLoading } = useProject(projectId);
   const { data: allMedia, isLoading: mediaLoading } = useMedia(projectId);
 
@@ -190,8 +186,6 @@ export function PostComposer() {
     setEditedImage,
     removeEditedImage,
     removeGeneratedImage,
-    addGeneratedImage,
-    setHashtags,
     setPlatformAspect,
   } = useComposerStore();
 
@@ -216,16 +210,10 @@ export function PostComposer() {
   const [platformAspects, setPlatformAspects] = useState<
     Record<Platform, number>
   >(() => ({ ...PLATFORM_DEFAULT_ASPECT }));
-  const [activeTemplate, setActiveTemplate] = useState<Template | null>(null);
-  const [templateApplied, setTemplateApplied] = useState(false);
-  const [templatePromptValues, setTemplatePromptValues] = useState<
-    Record<number, string>
-  >({});
   // Track loaded video edits for preview (mediaId -> textOverlays)
   const [videoEdits, setVideoEdits] = useState<
     Record<string, { textOverlays: VideoTextOverlay[] }>
   >({});
-  const [showTemplateRenderer, setShowTemplateRenderer] = useState(false);
   // Slideshow creation state
   const [showSlideshowSettings, setShowSlideshowSettings] = useState(false);
   const [slideshowTransition, setSlideshowTransition] =
@@ -236,104 +224,6 @@ export function PostComposer() {
   const [isCreatingSlideshow, setIsCreatingSlideshow] = useState(false);
   const [slideshowError, setSlideshowError] = useState<string | null>(null);
   const [slideshowSuccess, setSlideshowSuccess] = useState(false);
-
-  // Update a template prompt value
-  const updatePromptValue = (index: number, value: string) => {
-    setTemplatePromptValues((prev) => ({ ...prev, [index]: value }));
-  };
-
-  // Generate caption from filled template prompts
-  const generateCaptionFromTemplate = () => {
-    if (!activeTemplate?.captionPrompts) return;
-
-    const filledPrompts = activeTemplate.captionPrompts
-      .map((_, i) => templatePromptValues[i] || "")
-      .filter((v) => v.trim() !== "");
-
-    if (filledPrompts.length === 0) return;
-
-    // Build caption based on template type
-    let generatedCaption = "";
-
-    if (activeTemplate.category === "quote") {
-      // Quote format: "Quote text" — Author
-      generatedCaption = `"${filledPrompts[0]}"`;
-      if (filledPrompts[1]) {
-        generatedCaption += `\n\n— ${filledPrompts[1]}`;
-      }
-    } else if (
-      activeTemplate.category === "tips" ||
-      activeTemplate.category === "carousel"
-    ) {
-      // Tips/carousel: Title + numbered points
-      if (filledPrompts[0]) {
-        generatedCaption = `${filledPrompts[0]}\n\n`;
-      }
-      filledPrompts.slice(1).forEach((tip, i) => {
-        generatedCaption += `${i + 1}. ${tip}\n`;
-      });
-    } else if (activeTemplate.category === "testimonial") {
-      // Testimonial: Review + name
-      generatedCaption = `"${filledPrompts[0]}"`;
-      if (filledPrompts[1]) {
-        generatedCaption += `\n\n— ${filledPrompts[1]}`;
-      }
-    } else {
-      // Default: join with line breaks
-      generatedCaption = filledPrompts.join("\n\n");
-    }
-
-    setCaption(generatedCaption.trim());
-  };
-
-  // Handle generated template image
-  const handleTemplateImageGenerated = (imageDataUrl: string) => {
-    addGeneratedImage(imageDataUrl, "template");
-    setShowTemplateRenderer(false);
-    // Also apply the caption
-    generateCaptionFromTemplate();
-  };
-
-  // Load template from URL query param
-  useEffect(() => {
-    const templateId = searchParams.get("template");
-    if (templateId && !templateApplied) {
-      const template = TEMPLATES.find((t) => t.id === templateId);
-      if (template) {
-        setActiveTemplate(template);
-
-        // Apply template settings
-        if (template.suggestedHashtags) {
-          setHashtags(template.suggestedHashtags);
-        }
-
-        // Set platforms from template
-        const currentPlatforms = useComposerStore.getState().platforms;
-        template.platforms.forEach((platform) => {
-          if (!currentPlatforms.includes(platform)) {
-            togglePlatform(platform);
-          }
-        });
-
-        // Set caption style based on template category
-        if (template.category === "quote") {
-          setCaptionStyle("quote");
-        } else if (
-          template.category === "story" ||
-          template.category === "behind-the-scenes"
-        ) {
-          setCaptionStyle("story");
-        } else if (
-          template.category === "tips" ||
-          template.category === "carousel"
-        ) {
-          setCaptionStyle("personal");
-        }
-
-        setTemplateApplied(true);
-      }
-    }
-  }, [searchParams, templateApplied, setHashtags, togglePlatform]);
 
   // Load saved edits from disk for all media (runs once when media loads)
   useEffect(() => {
@@ -439,12 +329,6 @@ export function PostComposer() {
 
     loadVideoEdits();
   }, [projectId, allMedia]);
-
-  // Clear template when navigating away
-  const handleClearTemplate = () => {
-    setActiveTemplate(null);
-    setSearchParams({});
-  };
 
   if (projectLoading || mediaLoading) return <PageLoader />;
 
@@ -641,84 +525,6 @@ export function PostComposer() {
         </div>
       )}
 
-      {/* Template Banner */}
-      {activeTemplate && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-xl">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium uppercase text-primary-600 bg-primary-100 px-2 py-0.5 rounded">
-                Template
-              </span>
-              <h3 className="font-semibold text-gray-900">
-                {activeTemplate.name}
-              </h3>
-            </div>
-            <button
-              onClick={handleClearTemplate}
-              className="text-gray-400 hover:text-gray-600 p-1"
-              title="Remove template"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Caption prompts input fields */}
-          {activeTemplate.captionPrompts &&
-            activeTemplate.captionPrompts.length > 0 && (
-              <div className="space-y-3">
-                {activeTemplate.captionPrompts.map((prompt, i) => (
-                  <div key={i}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {prompt.placeholder}
-                    </label>
-                    <input
-                      type="text"
-                      value={templatePromptValues[i] || ""}
-                      onChange={(e) => updatePromptValue(i, e.target.value)}
-                      placeholder={prompt.example}
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    />
-                  </div>
-                ))}
-
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    variant="secondary"
-                    onClick={generateCaptionFromTemplate}
-                    disabled={Object.values(templatePromptValues).every(
-                      (v) => !v?.trim(),
-                    )}
-                    className="flex-1"
-                  >
-                    Caption Only
-                  </Button>
-                  <Button
-                    onClick={() => setShowTemplateRenderer(true)}
-                    disabled={Object.values(templatePromptValues).every(
-                      (v) => !v?.trim(),
-                    )}
-                    className="flex-1"
-                  >
-                    Generate Image
-                  </Button>
-                </div>
-              </div>
-            )}
-        </div>
-      )}
-
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left Column - Editor */}
         <div className="space-y-6">
@@ -759,17 +565,11 @@ export function PostComposer() {
                   >
                     <img
                       src={genImage.dataUrl}
-                      alt={`${genImage.type === "template" ? "Template" : "Collage"} ${index + 1}`}
+                      alt={`Collage ${index + 1}`}
                       className="w-20 h-20 object-cover object-center rounded-lg"
                     />
-                    <div
-                      className={`absolute top-0 left-0 text-white text-[10px] px-1 rounded-tl-lg rounded-br ${
-                        genImage.type === "template"
-                          ? "bg-purple-500"
-                          : "bg-primary-500"
-                      }`}
-                    >
-                      {genImage.type === "template" ? "Template" : "Collage"}
+                    <div className="absolute top-0 left-0 text-white text-[10px] px-1 rounded-tl-lg rounded-br bg-primary-500">
+                      Collage
                     </div>
                     <button
                       onClick={() => removeGeneratedImage(index)}
@@ -1322,16 +1122,8 @@ export function PostComposer() {
 
                           {/* Generated image badge */}
                           {currentItem.type === "generated" && (
-                            <div
-                              className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded ${
-                                currentItem.genType === "template"
-                                  ? "bg-purple-500"
-                                  : "bg-primary-500"
-                              }`}
-                            >
-                              {currentItem.genType === "template"
-                                ? "Template"
-                                : "Collage"}
+                            <div className="absolute top-2 left-2 text-white text-xs px-2 py-1 rounded bg-primary-500">
+                              Collage
                             </div>
                           )}
 
@@ -1427,14 +1219,8 @@ export function PostComposer() {
                               }}
                             />
                             {item.type === "generated" && (
-                              <div
-                                className={`absolute top-0 left-0 text-white text-[8px] px-1 rounded-br ${
-                                  item.genType === "template"
-                                    ? "bg-purple-500"
-                                    : "bg-primary-500"
-                                }`}
-                              >
-                                {item.genType === "template" ? "T" : "C"}
+                              <div className="absolute top-0 left-0 text-white text-[8px] px-1 rounded-br bg-primary-500">
+                                C
                               </div>
                             )}
                             {item.type === "media" &&
@@ -1580,23 +1366,6 @@ export function PostComposer() {
             onClose={() => setEditingMedia(null)}
           />
         ))}
-
-      {/* Template Renderer Modal */}
-      {showTemplateRenderer && activeTemplate && (
-        <TemplateRenderer
-          template={activeTemplate}
-          promptValues={templatePromptValues}
-          availableMedia={(allMedia || []).map((m) => ({
-            id: m.id,
-            url: editedImages[m.id]?.dataUrl || `/media/${m.originalPath}`,
-            thumbnailUrl:
-              editedImages[m.id]?.dataUrl || `/media/${m.thumbnailPath}`,
-          }))}
-          brandKit={project?.brandKit}
-          onGenerate={handleTemplateImageGenerated}
-          onClose={() => setShowTemplateRenderer(false)}
-        />
-      )}
 
       {/* Slideshow Settings Modal */}
       <Modal

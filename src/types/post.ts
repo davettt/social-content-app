@@ -172,7 +172,6 @@ export interface Post {
   platforms: Platform[];
   platformContent: PlatformContent[];
   viralityScore?: ViralityScore;
-  templateId?: string;
   status: "draft" | "ready" | "exported";
   createdAt: string;
   updatedAt: string;

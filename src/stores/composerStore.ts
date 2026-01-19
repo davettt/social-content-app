@@ -27,7 +27,7 @@ export interface EditedImageData {
 
 export interface GeneratedImage {
   dataUrl: string;
-  type: "collage" | "template";
+  type: "collage";
 }
 
 interface ComposerState {
@@ -40,7 +40,7 @@ interface ComposerState {
   captionSuggestions: CaptionSuggestion[];
   viralityScore: ViralityScore | null;
   editedImages: Record<string, EditedImageData>; // mediaId -> edited image data
-  generatedImages: GeneratedImage[]; // collages and template images
+  generatedImages: GeneratedImage[]; // collage images
   isDirty: boolean;
 
   addMedia: (mediaId: string) => void;
@@ -60,7 +60,7 @@ interface ComposerState {
   setEditedImage: (mediaId: string, data: EditedImageData) => void;
   removeEditedImage: (mediaId: string) => void;
   getEditedImage: (mediaId: string) => EditedImageData | undefined;
-  addGeneratedImage: (dataUrl: string, type: "collage" | "template") => void;
+  addGeneratedImage: (dataUrl: string, type: "collage") => void;
   removeGeneratedImage: (index: number) => void;
   reset: () => void;
 }

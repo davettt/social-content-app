@@ -46,9 +46,6 @@ export function Header() {
               </NavLink>
               <NavLink to={`/projects/${projectId}/media`}>Media</NavLink>
               <NavLink to={`/projects/${projectId}/compose`}>Compose</NavLink>
-              <NavLink to={`/projects/${projectId}/templates`}>
-                Templates
-              </NavLink>
               <NavLink to={`/projects/${projectId}/export`}>Export</NavLink>
             </nav>
           )}

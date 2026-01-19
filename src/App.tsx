@@ -6,7 +6,6 @@ import { ProjectSetup } from "./components/projects/ProjectSetup";
 import { ProjectSettings } from "./components/projects/ProjectSettings";
 import { MediaLibrary } from "./components/media/MediaLibrary";
 import { PostComposer } from "./components/composer/PostComposer";
-import { TemplatesPage } from "./components/templates/TemplatesPage";
 import { ExportPage } from "./components/export/ExportPage";
 
 function App() {
@@ -29,10 +28,6 @@ function App() {
           <Route
             path="projects/:projectId/compose/:postId"
             element={<PostComposer />}
-          />
-          <Route
-            path="projects/:projectId/templates"
-            element={<TemplatesPage />}
           />
           <Route path="projects/:projectId/export" element={<ExportPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
