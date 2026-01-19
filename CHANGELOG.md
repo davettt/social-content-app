@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] - 2026-01-19
+
+### Removed
+- **Template system** - Removed templates feature due to fundamental architecture issues (preview cards disconnected from renderer). Will be replaced with decorative graphic elements in a future release (TC-95)
+  - Deleted TemplateRenderer, TemplatesPage, and templateData components
+  - Removed templates navigation and routes
+  - Simplified GeneratedImage type to collage-only
+
 ## [1.3.1] - 2026-01-16
 
 ### Added

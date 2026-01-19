@@ -12,7 +12,6 @@ A local-first web application for creating viral-optimized social media content.
 - **Video stitcher** - Combine multiple clips with automatic aspect ratio normalization
 - **Collage builder** - Multi-image layouts
 - **Post composer** - AI captions, hashtags, virality scoring
-- **Template system** - Pre-built viral formats
 - **Platform export** - Instagram, Threads, Twitter/X, LinkedIn
 - **Phone transfer** - ZIP download for easy AirDrop to phone
 
