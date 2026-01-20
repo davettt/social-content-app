@@ -119,6 +119,27 @@ function escapeFFmpegText(text) {
     .replace(/\]/g, "\\]");
 }
 
+// Expand 3-character hex colors to 6-character format for FFmpeg compatibility
+// FFmpeg requires full #RRGGBB format, not CSS shorthand #RGB
+function expandHexColor(color) {
+  if (!color) return color;
+  // Match 3-char hex: #RGB or #RGBA
+  const match = color.match(
+    /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])?$/,
+  );
+  if (match) {
+    const r = match[1];
+    const g = match[2];
+    const b = match[3];
+    const a = match[4];
+    if (a) {
+      return `#${r}${r}${g}${g}${b}${b}${a}${a}`;
+    }
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return color;
+}
+
 // Wrap text into multiple lines based on max width
 function wrapText(text, maxCharsPerLine) {
   if (!text || maxCharsPerLine <= 0) return [text || ""];
@@ -146,8 +167,20 @@ function wrapText(text, maxCharsPerLine) {
 }
 
 // Get FFmpeg position expressions for text position presets
-function getFFmpegPositionExpression(position, textAlign) {
+// offsetX/offsetY are pixel offsets from the preset position (from dragging)
+// fontScaleFactor is used to scale offsets to match export resolution
+function getFFmpegPositionExpression(
+  position,
+  textAlign,
+  offsetX = 0,
+  offsetY = 0,
+  fontScaleFactor = 1,
+) {
   const margin = 0.05; // 5% margin
+
+  // Scale offsets based on font scale factor (preview vs export size difference)
+  const scaledOffsetX = Math.round(offsetX * fontScaleFactor);
+  const scaledOffsetY = Math.round(offsetY * fontScaleFactor);
 
   // X position based on horizontal alignment
   let x;
@@ -187,11 +220,61 @@ function getFFmpegPositionExpression(position, textAlign) {
     }
   }
 
+  // Apply scaled offsets to position expressions
+  // Handle both positive and negative offsets correctly
+  if (scaledOffsetX !== 0) {
+    if (scaledOffsetX > 0) {
+      x = `(${x})+${scaledOffsetX}`;
+    } else {
+      x = `(${x})${scaledOffsetX}`; // negative number already has minus sign
+    }
+  }
+  if (scaledOffsetY !== 0) {
+    if (scaledOffsetY > 0) {
+      y = `(${y})+${scaledOffsetY}`;
+    } else {
+      y = `(${y})${scaledOffsetY}`; // negative number already has minus sign
+    }
+  }
+
   return { x, y };
 }
 
 // Editor preview base size - font sizes are defined relative to this
 const EDITOR_PREVIEW_BASE_SIZE = 400;
+
+// Get video duration using ffprobe
+async function getVideoDuration(sourcePath) {
+  return new Promise((resolve) => {
+    const ffprobe = spawn("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "csv=p=0",
+      sourcePath,
+    ]);
+
+    let stdout = "";
+    ffprobe.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ffprobe.on("close", (code) => {
+      if (code === 0) {
+        const duration = parseFloat(stdout.trim());
+        resolve(isNaN(duration) ? null : duration);
+      } else {
+        resolve(null);
+      }
+    });
+
+    ffprobe.on("error", () => {
+      resolve(null);
+    });
+  });
+}
 
 // Get video dimensions using ffprobe
 async function getVideoDimensions(sourcePath) {
@@ -348,32 +431,66 @@ function buildDrawtextFilters(
     );
   }
 
+  // Log offset values for debugging
+  const hasOffsets = overlay.offsetX || overlay.offsetY;
+  if (hasOffsets) {
+    const scaledX = Math.round((overlay.offsetX || 0) * fontScaleFactor);
+    const scaledY = Math.round((overlay.offsetY || 0) * fontScaleFactor);
+    console.log(
+      `Text overlay "${overlay.text}" has drag offsets: offsetX=${overlay.offsetX || 0}, offsetY=${overlay.offsetY || 0}, fontScaleFactor=${fontScaleFactor}, scaledX=${scaledX}, scaledY=${scaledY}`,
+    );
+  }
+
+  // Get position expressions with drag offsets applied
   const { x, y } = getFFmpegPositionExpression(
     overlay.position,
     overlay.textAlign,
+    overlay.offsetX || 0,
+    overlay.offsetY || 0,
+    fontScaleFactor,
   );
+
+  // Debug: log the generated position expressions
+  if (hasOffsets) {
+    console.log(`Generated position expressions: x='${x}', y='${y}'`);
+  }
 
   // Calculate enable expression based on timing preset
   let enable;
+  let textStartTime = 0;
+  let textEndTime = trimDuration;
   switch (overlay.timing) {
     case "full":
       enable = "1";
+      textStartTime = 0;
+      textEndTime = trimDuration;
       break;
     case "first-3s":
       enable = "between(t,0,3)";
+      textStartTime = 0;
+      textEndTime = 3;
       break;
     case "last-3s":
       enable = `between(t,${Math.max(0, trimDuration - 3)},${trimDuration})`;
+      textStartTime = Math.max(0, trimDuration - 3);
+      textEndTime = trimDuration;
       break;
     case "first-5s":
       enable = "between(t,0,5)";
+      textStartTime = 0;
+      textEndTime = 5;
       break;
     case "last-5s":
       enable = `between(t,${Math.max(0, trimDuration - 5)},${trimDuration})`;
+      textStartTime = Math.max(0, trimDuration - 5);
+      textEndTime = trimDuration;
       break;
     default:
       enable = "1";
   }
+
+  const animation = overlay.animation || "none";
+  const animDuration = overlay.animationDuration || 1;
 
   // Scale font size based on actual video dimensions vs editor preview size
   const baseFontSize = overlay.fontSize || 48;
@@ -409,6 +526,9 @@ function buildDrawtextFilters(
     shadowOpts = `:shadowcolor=black@0.7:shadowx=${shadowOffset}:shadowy=${shadowOffset}`;
   }
 
+  // Calculate scaled offsets for applying to yExpr (x already has offset from getFFmpegPositionExpression)
+  const scaledOffsetY = Math.round((overlay.offsetY || 0) * fontScaleFactor);
+
   // Generate a filter for each line
   const filters = [];
   for (let i = 0; i < lines.length; i++) {
@@ -425,17 +545,151 @@ function buildDrawtextFilters(
       const bottomOffset = (lines.length - 1 - i) * lineHeight;
       yExpr = `h*0.95-th-${bottomOffset}`;
     } else {
-      // Middle: center the block, offset each line
+      // Middle: center block, offset each line
       const blockStartOffset = -totalHeight / 2 + lineHeight / 2;
       yExpr = `(h-th)/2+${blockStartOffset + lineOffset}`;
     }
 
+    // Apply drag offset to Y position
+    if (scaledOffsetY !== 0) {
+      if (scaledOffsetY > 0) {
+        yExpr = `(${yExpr})+${scaledOffsetY}`;
+      } else {
+        yExpr = `(${yExpr})${scaledOffsetY}`; // negative number already has minus sign
+      }
+    }
+
+    // Handle animations
+    let xExpr = x;
+    let finalEnable = enable;
+    let animOffsetExpr = "";
+    let alphaExpr = "";
+
+    switch (animation) {
+      case "fade":
+        // Fade in from alpha=0 to alpha=1 during animation duration
+        // Then fade out in last 0.5s
+        const fadeInEnd = textStartTime + animDuration;
+        const fadeOutStart = textEndTime - 0.5;
+        alphaExpr = `if(lt(t,${textStartTime}),0,if(lt(t,${fadeInEnd}),(t-${textStartTime})/${animDuration},if(lt(t,${fadeOutStart}),1,(${textEndTime}-t)/0.5)))`;
+        finalEnable = alphaExpr;
+        break;
+
+      case "bounce":
+        // Bounce text: sine wave on y position during animation duration
+        const bounceEnd = textStartTime + animDuration;
+        const bounceYOffset = 50 * fontScaleFactor;
+        animOffsetExpr = `if(lt(t,${textStartTime}),-${bounceYOffset},if(lt(t,${bounceEnd}),-${bounceYOffset}*cos((t-${textStartTime})*PI/${animDuration}*2)*exp(-(t-${textStartTime})*3/${animDuration}),0))`;
+        yExpr = `(${yExpr})+${animOffsetExpr}`;
+        break;
+
+      case "slide-up":
+        // Slide up from bottom
+        const slideUpEnd = textStartTime + animDuration;
+        const slideUpOffset = 200 * fontScaleFactor;
+        animOffsetExpr = `if(lt(t,${textStartTime}),${slideUpOffset},if(lt(t,${slideUpEnd}),${slideUpOffset}*(1-(t-${textStartTime})/${animDuration}),0))`;
+        yExpr = `(${yExpr})+${animOffsetExpr}`;
+        break;
+
+      case "slide-down":
+        // Slide down from top
+        const slideDownEnd = textStartTime + animDuration;
+        const slideDownOffset = 200 * fontScaleFactor;
+        animOffsetExpr = `if(lt(t,${textStartTime}),-${slideDownOffset},if(lt(t,${slideDownEnd}),-${slideDownOffset}*(1-(t-${textStartTime})/${animDuration}),0))`;
+        yExpr = `(${yExpr})+${animOffsetExpr}`;
+        break;
+
+      case "slide-left":
+        // Slide left from right
+        const slideLeftEnd = textStartTime + animDuration;
+        const slideLeftOffset = 300 * fontScaleFactor;
+        animOffsetExpr = `if(lt(t,${textStartTime}),${slideLeftOffset},if(lt(t,${slideLeftEnd}),${slideLeftOffset}*(1-(t-${textStartTime})/${animDuration}),0))`;
+        xExpr = `(${xExpr})+${animOffsetExpr}`;
+        break;
+
+      case "slide-right":
+        // Slide right from left
+        const slideRightEnd = textStartTime + animDuration;
+        const slideRightOffset = 300 * fontScaleFactor;
+        animOffsetExpr = `if(lt(t,${textStartTime}),-${slideRightOffset},if(lt(t,${slideRightEnd}),-${slideRightOffset}*(1-(t-${textStartTime})/${animDuration}),0))`;
+        xExpr = `(${xExpr})+${animOffsetExpr}`;
+        break;
+
+      case "typewriter":
+        // Typewriter effect: show character by character
+        // Create multiple filters, one for each character
+        const fullText = lines[i];
+        // Calculate scaled offsets for typewriter (same as in getFFmpegPositionExpression)
+        const twScaledOffsetX = Math.round(
+          (overlay.offsetX || 0) * fontScaleFactor,
+        );
+        const twScaledOffsetY = Math.round(
+          (overlay.offsetY || 0) * fontScaleFactor,
+        );
+
+        // Debug: log typewriter offset values
+        if (twScaledOffsetX !== 0 || twScaledOffsetY !== 0) {
+          console.log(
+            `Typewriter animation using: xExpr='${xExpr}', twScaledOffsetY=${twScaledOffsetY}`,
+          );
+        }
+
+        for (let charIndex = 0; charIndex <= fullText.length; charIndex++) {
+          const subText = fullText.substring(0, charIndex);
+          const charDelay = (charIndex / fullText.length) * animDuration;
+          const charShowTime = textStartTime + charDelay;
+          const charEnable = `if(lt(t,${charShowTime}),0,${enable})`;
+          const escapedSubText = escapeFFmpegText(subText);
+          const subTextLineOffset = i * lineHeight;
+
+          let subYExpr;
+          if (overlay.position && overlay.position.includes("top")) {
+            subYExpr = `h*0.05+${subTextLineOffset}`;
+          } else if (overlay.position && overlay.position.includes("bottom")) {
+            const bottomOffset = (lines.length - 1 - i) * lineHeight;
+            subYExpr = `h*0.95-th-${bottomOffset}`;
+          } else {
+            const blockStartOffset = -totalHeight / 2 + lineHeight / 2;
+            subYExpr = `(h-th)/2+${blockStartOffset + subTextLineOffset}`;
+          }
+
+          // Apply offsets to typewriter positions
+          if (twScaledOffsetY !== 0) {
+            subYExpr = `(${subYExpr})+${twScaledOffsetY}`;
+          }
+
+          let subFilter = `drawtext=text='${escapedSubText}'`;
+          subFilter += `:fontsize=${scaledFontSize}`;
+          subFilter += `:fontcolor=${expandHexColor(overlay.color) || "white"}`;
+          subFilter += `:x='${xExpr}'`;
+          subFilter += `:y='${subYExpr}'`;
+          subFilter += `:enable='${charEnable}'`;
+          subFilter += shadowOpts;
+
+          if (overlay.strokeWidth && overlay.strokeWidth > 0) {
+            const scaledStrokeWidth = Math.round(
+              overlay.strokeWidth * fontScaleFactor,
+            );
+            subFilter += `:borderw=${scaledStrokeWidth}`;
+            subFilter += `:bordercolor=${expandHexColor(overlay.strokeColor) || "black"}`;
+          }
+
+          if (overlay.backgroundColor) {
+            subFilter += `:box=1:boxcolor=${expandHexColor(overlay.backgroundColor)}@0.8`;
+            subFilter += `:boxborderw=5`;
+          }
+
+          filters.push(subFilter);
+        }
+        continue; // Skip the regular filter loop for typewriter
+    }
+
     let filter = `drawtext=text='${escapedText}'`;
     filter += `:fontsize=${scaledFontSize}`;
-    filter += `:fontcolor=${overlay.color || "white"}`;
-    filter += `:x=${x}`;
-    filter += `:y=${yExpr}`;
-    filter += `:enable='${enable}'`;
+    filter += `:fontcolor=${expandHexColor(overlay.color) || "white"}`;
+    filter += `:x='${xExpr}'`;
+    filter += `:y='${yExpr}'`;
+    filter += `:enable='${finalEnable}'`;
     filter += shadowOpts;
 
     // Add text stroke/outline support
@@ -444,12 +698,12 @@ function buildDrawtextFilters(
         overlay.strokeWidth * fontScaleFactor,
       );
       filter += `:borderw=${scaledStrokeWidth}`;
-      filter += `:bordercolor=${overlay.strokeColor || "black"}`;
+      filter += `:bordercolor=${expandHexColor(overlay.strokeColor) || "black"}`;
     }
 
     // Add background color support
     if (overlay.backgroundColor) {
-      filter += `:box=1:boxcolor=${overlay.backgroundColor}@0.8`;
+      filter += `:box=1:boxcolor=${expandHexColor(overlay.backgroundColor)}@0.8`;
       filter += `:boxborderw=5`; // Padding around text
     }
 
@@ -461,9 +715,11 @@ function buildDrawtextFilters(
 
 // Helper function to process video with FFmpeg
 async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
-  // Get video dimensions to calculate font scale factor
+  // Get video dimensions and duration for proper processing
   let fontScaleFactor = 1;
   const videoDims = await getVideoDimensions(sourcePath);
+  const actualVideoDuration = await getVideoDuration(sourcePath);
+
   if (videoDims) {
     // Calculate the effective height after aspect ratio crop
     let effectiveHeight = videoDims.height;
@@ -491,27 +747,36 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
     );
   }
 
+  // Ensure trimEnd has a valid value - use actual video duration if not set or 0
+  const effectiveTrimEnd =
+    edits.trimEnd > 0 ? edits.trimEnd : actualVideoDuration || 0;
+  const effectiveTrimStart = edits.trimStart || 0;
+
   return new Promise(async (resolve, reject) => {
     const args = [];
 
     // Trim: seek to start position
-    if (edits.trimStart > 0) {
-      args.push("-ss", edits.trimStart.toString());
+    if (effectiveTrimStart > 0) {
+      args.push("-ss", effectiveTrimStart.toString());
     }
 
     // Input file
     args.push("-i", sourcePath);
 
-    // Calculate trim duration
+    // Calculate trim duration - now uses effectiveTrimEnd which is always valid
     const trimDuration =
-      edits.trimEnd > edits.trimStart
-        ? edits.trimEnd - edits.trimStart
-        : Infinity;
+      effectiveTrimEnd > effectiveTrimStart
+        ? effectiveTrimEnd - effectiveTrimStart
+        : actualVideoDuration || 30; // Fallback to 30s if all else fails
 
     // Trim: duration (trimEnd - trimStart)
-    if (edits.trimEnd > edits.trimStart) {
+    if (effectiveTrimEnd > effectiveTrimStart) {
       args.push("-t", trimDuration.toString());
     }
+
+    console.log(
+      `Video processing: trimStart=${effectiveTrimStart}, trimEnd=${effectiveTrimEnd}, duration=${trimDuration}, actualDuration=${actualVideoDuration}`,
+    );
 
     // Build video filter for crop, speed change and text overlays
     const videoFilters = [];
@@ -553,6 +818,10 @@ async function processVideoWithFFmpeg(sourcePath, destPath, edits) {
     // Add text overlay filters (after crop, so text is positioned on cropped video)
     const tempImageFiles = [];
     if (edits.textOverlays && edits.textOverlays.length > 0) {
+      console.log(
+        `Applying ${edits.textOverlays.length} text overlay(s) to video`,
+      );
+
       // Adjust duration for speed changes
       const adjustedDuration =
         edits.speed && edits.speed !== 1
@@ -761,6 +1030,14 @@ router.post("/prepare", async (req, res, next) => {
             // Check for saved video edits
             const savedEdits = await loadVideoEdits(projectDir, media.id);
 
+            // Debug: log the raw saved edits
+            if (savedEdits?.textOverlays?.length > 0) {
+              console.log(
+                `Loaded textOverlays for ${media.id}:`,
+                JSON.stringify(savedEdits.textOverlays, null, 2),
+              );
+            }
+
             // Always use platform-specific aspect ratio for export
             // Override any saved aspect ratio with the platform's aspect ratio
             const videoEdits = {
@@ -776,11 +1053,11 @@ router.post("/prepare", async (req, res, next) => {
             // Check if we need to process (has edits or needs aspect ratio crop)
             const needsProcessing =
               videoEdits.trimStart > 0 ||
-              videoEdits.trimEnd > 0 ||
+              (videoEdits.trimEnd !== undefined && videoEdits.trimEnd > 0) ||
               videoEdits.speed !== 1 ||
               videoEdits.muted ||
               videoEdits.volume !== 1 ||
-              videoEdits.textOverlays.length > 0 ||
+              (videoEdits.textOverlays && videoEdits.textOverlays.length > 0) ||
               aspectRatio;
 
             if (needsProcessing) {

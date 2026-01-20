@@ -134,11 +134,26 @@ export type VideoTextTiming =
   | "first-5s"
   | "last-5s";
 
+// Animation preset for video text overlays
+export type TextAnimation =
+  | "none"
+  | "fade"
+  | "typewriter"
+  | "bounce"
+  | "slide-up"
+  | "slide-down"
+  | "slide-left"
+  | "slide-right";
+
 // Video-specific text overlay (extends base TextOverlay with timing)
 export interface VideoTextOverlay extends TextOverlay {
   timing: VideoTextTiming;
   strokeColor?: string; // Text outline color
   strokeWidth?: number; // Text outline width (0-10px)
+  animation?: TextAnimation;
+  animationDuration?: number; // Animation duration in seconds (default 1)
+  offsetX?: number; // Pixel offset from preset position (default: 0)
+  offsetY?: number; // Pixel offset from preset position (default: 0)
 }
 
 export interface CaptionSuggestion {

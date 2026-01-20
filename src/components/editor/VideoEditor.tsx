@@ -8,8 +8,9 @@ import type {
   TextPosition,
   BrandKit,
 } from "../../types";
-import { VideoTextPreview, TIMING_OPTIONS } from "./VideoTextPreview";
-import type { VideoTextTiming } from "../../types";
+import { VideoTextPreview } from "./VideoTextPreview";
+import { TIMING_OPTIONS, ANIMATION_OPTIONS } from "./textAnimationOptions";
+import type { VideoTextTiming, TextAnimation } from "../../types";
 
 export interface VideoEdits {
   trimStart: number;
@@ -426,6 +427,9 @@ export function VideoEditor({
                   selectedTextId={selectedTextId}
                   onSelectText={setSelectedTextId}
                   showAllForEditing={true}
+                  onDragText={(id, offsetX, offsetY) => {
+                    updateTextOverlay(id, { offsetX, offsetY });
+                  }}
                 />
               </div>
             </div>
@@ -812,9 +816,21 @@ export function VideoEditor({
                       <AlignmentPicker
                         value={selectedText.position || "middle-center"}
                         onChange={(position: TextPosition) =>
-                          updateTextOverlay(selectedText.id, { position })
+                          // Reset offsets when selecting a new position preset
+                          updateTextOverlay(selectedText.id, {
+                            position,
+                            offsetX: 0,
+                            offsetY: 0,
+                          })
                         }
                       />
+                      {/* Show offset reset hint if text has been dragged */}
+                      {(selectedText.offsetX !== 0 ||
+                        selectedText.offsetY !== 0) && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Position adjusted by drag. Select a preset to reset.
+                        </p>
+                      )}
                     </div>
 
                     {/* Timing */}
@@ -838,6 +854,52 @@ export function VideoEditor({
                         ))}
                       </select>
                     </div>
+
+                    {/* Animation */}
+                    <div>
+                      <label className="block text-sm text-gray-300 mb-1">
+                        Animation
+                      </label>
+                      <select
+                        value={selectedText.animation || "none"}
+                        onChange={(e) =>
+                          updateTextOverlay(selectedText.id, {
+                            animation: e.target.value as TextAnimation,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        {ANIMATION_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Animation Duration */}
+                    {selectedText.animation &&
+                      selectedText.animation !== "none" && (
+                        <div>
+                          <label className="block text-sm text-gray-300 mb-1">
+                            Animation Duration:{" "}
+                            {selectedText.animationDuration || 1}s
+                          </label>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2"
+                            step="0.5"
+                            value={selectedText.animationDuration || 1}
+                            onChange={(e) =>
+                              updateTextOverlay(selectedText.id, {
+                                animationDuration: parseFloat(e.target.value),
+                              })
+                            }
+                            className="w-full"
+                          />
+                        </div>
+                      )}
 
                     {/* Font */}
                     <div>

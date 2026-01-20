@@ -3,6 +3,19 @@ import { Button } from "../common/Button";
 import { editsApi } from "../../services/api";
 import type { Media } from "../../types";
 
+type VideoTransition = "fade" | "wipeleft" | "slideright" | "circlecrop";
+
+const VIDEO_TRANSITIONS: {
+  value: VideoTransition | undefined;
+  label: string;
+}[] = [
+  { value: undefined, label: "None" },
+  { value: "fade", label: "Fade" },
+  { value: "wipeleft", label: "Wipe" },
+  { value: "slideright", label: "Slide" },
+  { value: "circlecrop", label: "Circle" },
+];
+
 interface StitchedClip {
   mediaId: string;
   media: Media;
@@ -34,6 +47,10 @@ export function VideoStitcher({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewClipIndex, setPreviewClipIndex] = useState<number | null>(null);
+  const [transition, setTransition] = useState<VideoTransition | undefined>(
+    undefined,
+  );
+  const [transitionDuration, setTransitionDuration] = useState(1);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const videoMedia = availableMedia.filter((m) => m.type === "video");
@@ -186,7 +203,12 @@ export function VideoStitcher({
         trimEnd: clip.trimEnd,
       }));
 
-      const result = await editsApi.stitchVideos(projectId, clips);
+      const result = await editsApi.stitchVideos(
+        projectId,
+        clips,
+        transition,
+        transitionDuration,
+      );
 
       if (result.success && result.media) {
         onSave(result.media);
@@ -301,6 +323,48 @@ export function VideoStitcher({
 
         {/* Sidebar */}
         <div className="w-96 bg-gray-800 border-l border-gray-700 overflow-y-auto">
+          {/* Transition Settings */}
+          {selectedClips.length >= 2 && (
+            <div className="p-4 border-b border-gray-700">
+              <h3 className="text-sm font-medium text-gray-300 mb-3">
+                Transition Effect
+              </h3>
+              <div className="grid grid-cols-5 gap-2 mb-3">
+                {VIDEO_TRANSITIONS.map((t) => (
+                  <button
+                    key={t.value || "none"}
+                    onClick={() => setTransition(t.value)}
+                    className={`px-3 py-2 text-xs rounded-lg border-2 transition-colors ${
+                      transition === t.value
+                        ? "border-primary-500 bg-primary-50 text-primary-700"
+                        : "border-gray-600 hover:border-gray-500 text-gray-300"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {transition && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Transition Duration: {transitionDuration}s
+                  </label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2"
+                    step="0.5"
+                    value={transitionDuration}
+                    onChange={(e) =>
+                      setTransitionDuration(parseFloat(e.target.value))
+                    }
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Selected Clips Order */}
           {selectedClips.length > 0 && (
             <div className="p-4 border-b border-gray-700">

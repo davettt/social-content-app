@@ -1,3 +1,4 @@
+import { useState, useRef, useCallback } from "react";
 import type { VideoTextOverlay, VideoTextTiming } from "../../types";
 import { TEXT_POSITIONS } from "../../types/post";
 
@@ -10,17 +11,9 @@ interface VideoTextPreviewProps {
   onSelectText?: (id: string | null) => void;
   /** If true, always show all text overlays (dim those outside timing window) */
   showAllForEditing?: boolean;
+  /** Callback when text is dragged to a new position */
+  onDragText?: (id: string, offsetX: number, offsetY: number) => void;
 }
-
-// Timing preset labels for display
-// eslint-disable-next-line react-refresh/only-export-components -- timing options are tightly coupled to VideoTextPreview
-export const TIMING_OPTIONS: { value: VideoTextTiming; label: string }[] = [
-  { value: "full", label: "Full video" },
-  { value: "first-3s", label: "First 3 seconds" },
-  { value: "last-3s", label: "Last 3 seconds" },
-  { value: "first-5s", label: "First 5 seconds" },
-  { value: "last-5s", label: "Last 5 seconds" },
-];
 
 /**
  * Check if text should be visible based on timing preset
@@ -53,17 +46,20 @@ function isTextVisible(
 /**
  * Get CSS position styles for a text overlay based on its position preset
  * Uses percentage-based positioning for responsive layout
+ * Applies offsetX/offsetY pixel offsets from drag positioning
  */
 function getPositionStyles(overlay: VideoTextOverlay): React.CSSProperties {
   const margin = "5%"; // 5% safe zone margin
+  const offsetX = overlay.offsetX || 0;
+  const offsetY = overlay.offsetY || 0;
 
   const config = TEXT_POSITIONS.find((p) => p.position === overlay.position);
 
   if (!config) {
     // Default to center if no position set
     return {
-      left: "50%",
-      top: "50%",
+      left: `calc(50% + ${offsetX}px)`,
+      top: `calc(50% + ${offsetY}px)`,
       transform: "translate(-50%, -50%)",
       textAlign: "center" as const,
     };
@@ -71,39 +67,85 @@ function getPositionStyles(overlay: VideoTextOverlay): React.CSSProperties {
 
   const styles: React.CSSProperties = {};
 
-  // Horizontal positioning
+  // Horizontal positioning with offset
   switch (config.horizontalAlign) {
     case "left":
-      styles.left = margin;
+      styles.left = offsetX !== 0 ? `calc(${margin} + ${offsetX}px)` : margin;
       styles.textAlign = "left";
       break;
     case "right":
-      styles.right = margin;
+      styles.right = offsetX !== 0 ? `calc(${margin} - ${offsetX}px)` : margin;
       styles.textAlign = "right";
       break;
     case "center":
-      styles.left = "50%";
+      styles.left = offsetX !== 0 ? `calc(50% + ${offsetX}px)` : "50%";
       styles.transform = "translateX(-50%)";
       styles.textAlign = "center";
       break;
   }
 
-  // Vertical positioning
+  // Vertical positioning with offset
   switch (config.verticalAlign) {
     case "top":
-      styles.top = margin;
+      styles.top = offsetY !== 0 ? `calc(${margin} + ${offsetY}px)` : margin;
       break;
     case "bottom":
-      styles.bottom = margin;
+      styles.bottom = offsetY !== 0 ? `calc(${margin} - ${offsetY}px)` : margin;
       break;
     case "middle":
       if (styles.transform) {
-        styles.top = "50%";
+        styles.top = offsetY !== 0 ? `calc(50% + ${offsetY}px)` : "50%";
         styles.transform = "translate(-50%, -50%)";
       } else {
-        styles.top = "50%";
+        styles.top = offsetY !== 0 ? `calc(50% + ${offsetY}px)` : "50%";
         styles.transform = "translateY(-50%)";
       }
+      break;
+  }
+
+  return styles;
+}
+
+/**
+ * Get CSS animation styles for a text overlay
+ */
+function getAnimationStyles(overlay: VideoTextOverlay): React.CSSProperties {
+  const animation = overlay.animation || "none";
+  const animDuration = (overlay.animationDuration || 1) * 1000; // Convert to ms
+
+  if (animation === "none") {
+    return {};
+  }
+
+  const styles: React.CSSProperties = {};
+
+  switch (animation) {
+    case "fade":
+      styles.animation = `textFadeIn ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "bounce":
+      styles.animation = `textBounce ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "slide-up":
+      styles.animation = `textSlideUp ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "slide-down":
+      styles.animation = `textSlideDown ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "slide-left":
+      styles.animation = `textSlideLeft ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "slide-right":
+      styles.animation = `textSlideRight ${animDuration}ms ease-out forwards`;
+      break;
+
+    case "typewriter":
+      // Typewriter is handled differently - see render function
       break;
   }
 
@@ -118,11 +160,77 @@ export function VideoTextPreview({
   selectedTextId,
   onSelectText,
   showAllForEditing = false,
+  onDragText,
 }: VideoTextPreviewProps) {
+  // Track drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOverlayId, setDragOverlayId] = useState<string | null>(null);
+  const dragStartRef = useRef<{
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, overlay: VideoTextOverlay) => {
+      if (!onDragText || selectedTextId !== overlay.id) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      setIsDragging(true);
+      setDragOverlayId(overlay.id);
+      dragStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        offsetX: overlay.offsetX || 0,
+        offsetY: overlay.offsetY || 0,
+      };
+    },
+    [onDragText, selectedTextId],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!isDragging || !dragStartRef.current || !dragOverlayId || !onDragText)
+        return;
+
+      const deltaX = e.clientX - dragStartRef.current.x;
+      const deltaY = e.clientY - dragStartRef.current.y;
+
+      const newOffsetX = dragStartRef.current.offsetX + deltaX;
+      const newOffsetY = dragStartRef.current.offsetY + deltaY;
+
+      onDragText(dragOverlayId, newOffsetX, newOffsetY);
+    },
+    [isDragging, dragOverlayId, onDragText],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+    setDragOverlayId(null);
+    dragStartRef.current = null;
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isDragging) {
+      handleMouseUp();
+    }
+  }, [isDragging, handleMouseUp]);
+
   if (overlays.length === 0) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div
+      ref={containerRef}
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+      style={{ pointerEvents: isDragging ? "auto" : undefined }}
+    >
       {overlays.map((overlay) => {
         const isInTimingWindow = isTextVisible(
           overlay.timing,
@@ -136,7 +244,11 @@ export function VideoTextPreview({
         if (!showAllForEditing && !isInTimingWindow) return null;
 
         const positionStyles = getPositionStyles(overlay);
+        const animationStyles = getAnimationStyles(overlay);
         const isSelected = selectedTextId === overlay.id;
+        const animation = overlay.animation || "none";
+        const animDuration = overlay.animationDuration || 1;
+        const canDrag = onDragText && isSelected;
 
         // Reduce opacity for text outside timing window (when editing)
         const effectiveOpacity =
@@ -144,39 +256,108 @@ export function VideoTextPreview({
             ? (overlay.opacity || 1) * 0.4
             : overlay.opacity;
 
+        // Handle typewriter animation specially
+        const renderContent = () => {
+          if (animation === "typewriter") {
+            const relativeTime = currentTime - trimStart;
+            const text = overlay.text || "Enter text...";
+            const charsToShow = Math.max(
+              0,
+              Math.min(
+                text.length,
+                Math.floor((relativeTime / animDuration) * text.length),
+              ),
+            );
+            return text.substring(0, charsToShow);
+          }
+          return overlay.text || "Enter text...";
+        };
+
         return (
           <div
             key={overlay.id}
             className={`absolute transition-opacity duration-200 ${
-              onSelectText ? "pointer-events-auto cursor-pointer" : ""
-            } ${isSelected ? "ring-2 ring-primary-500 ring-offset-2 ring-offset-transparent" : ""}`}
-            style={
-              {
-                ...positionStyles,
-                fontSize: overlay.fontSize,
-                fontFamily: overlay.fontFamily,
-                color: overlay.color,
-                opacity: effectiveOpacity,
-                textShadow: overlay.shadow
-                  ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
-                  : undefined,
-                backgroundColor: overlay.backgroundColor || undefined,
-                padding: overlay.backgroundColor ? "4px 8px" : undefined,
-                borderRadius: overlay.backgroundColor ? "4px" : undefined,
-                maxWidth: "90%",
-                wordWrap: "break-word",
-                whiteSpace: "pre-wrap",
-                WebkitTextStroke: (overlay as VideoTextOverlay).strokeWidth
-                  ? `${(overlay as VideoTextOverlay).strokeWidth}px ${(overlay as VideoTextOverlay).strokeColor || "#000000"}`
-                  : undefined,
-              } as React.CSSProperties
-            }
-            onClick={() => onSelectText?.(overlay.id)}
+              onSelectText ? "pointer-events-auto" : ""
+            } ${canDrag ? "cursor-move" : onSelectText ? "cursor-pointer" : ""} ${isSelected ? "ring-2 ring-primary-500 ring-offset-2 ring-offset-transparent" : ""}`}
+            style={positionStyles}
+            onMouseDown={(e) => handleMouseDown(e, overlay)}
+            onClick={(e) => {
+              if (!isDragging) {
+                e.stopPropagation();
+                onSelectText?.(overlay.id);
+              }
+            }}
           >
-            {overlay.text || "Enter text..."}
+            <div
+              style={
+                {
+                  ...animationStyles,
+                  fontSize: overlay.fontSize,
+                  fontFamily: overlay.fontFamily,
+                  color: overlay.color,
+                  opacity: effectiveOpacity,
+                  textShadow: overlay.shadow
+                    ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
+                    : undefined,
+                  backgroundColor: overlay.backgroundColor || undefined,
+                  padding: overlay.backgroundColor ? "4px 8px" : undefined,
+                  borderRadius: overlay.backgroundColor ? "4px" : undefined,
+                  whiteSpace: "nowrap",
+                  WebkitTextStroke: (overlay as VideoTextOverlay).strokeWidth
+                    ? `${(overlay as VideoTextOverlay).strokeWidth}px ${(overlay as VideoTextOverlay).strokeColor || "#000000"}`
+                    : undefined,
+                  userSelect: "none",
+                } as React.CSSProperties
+              }
+            >
+              {renderContent()}
+            </div>
+            {/* Drag indicator for selected text */}
+            {canDrag && (
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-white bg-black/50 px-2 py-0.5 rounded whitespace-nowrap">
+                Drag to move
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 }
+
+// Add CSS keyframes for animations (will be injected into the document)
+const style = document.createElement("style");
+style.textContent = `
+  @keyframes textFadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes textBounce {
+    0% { transform: translateY(-100px); }
+    60% { transform: translateY(20px); }
+    80% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes textSlideUp {
+    0% { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes textSlideDown {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes textSlideLeft {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(0); }
+  }
+
+  @keyframes textSlideRight {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(0); }
+  }
+`;
+document.head.appendChild(style);

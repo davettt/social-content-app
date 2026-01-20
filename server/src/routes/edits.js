@@ -210,7 +210,7 @@ router.post("/:projectId/video/:mediaId", async (req, res, next) => {
     const videoEdits = {
       mediaId,
       trimStart: trimStart ?? 0,
-      trimEnd: trimEnd ?? null,
+      trimEnd: trimEnd ?? 0,
       speed: speed ?? 1,
       muted: muted ?? false,
       volume: volume ?? 1,
@@ -222,6 +222,12 @@ router.post("/:projectId/video/:mediaId", async (req, res, next) => {
     const metadataPath = path.join(editsDir, `video-${mediaId}.json`);
     await writeJsonFile(metadataPath, videoEdits);
     console.log(`Saved video edit settings: ${metadataPath}`);
+    console.log(`Saved edits:`, {
+      trimStart: videoEdits.trimStart,
+      trimEnd: videoEdits.trimEnd,
+      textOverlays: videoEdits.textOverlays?.length || 0,
+      aspectRatio: videoEdits.aspectRatio,
+    });
 
     // Update media index with hasEdits flag
     const index = await getMediaIndex(projectId);
@@ -250,13 +256,29 @@ router.get("/:projectId/video/:mediaId", async (req, res, next) => {
 
     const metadata = await readJsonFile(metadataPath);
     if (!metadata) {
+      console.log(`No video edits found for ${mediaId}`);
       res.json({ hasEdits: false });
       return;
     }
 
+    console.log(`Loaded video edits for ${mediaId}:`, {
+      trimStart: metadata.trimStart,
+      trimEnd: metadata.trimEnd,
+      textOverlays: metadata.textOverlays?.length || 0,
+      aspectRatio: metadata.aspectRatio,
+    });
+
     res.json({
       hasEdits: true,
-      ...metadata,
+      mediaId: metadata.mediaId,
+      trimStart: metadata.trimStart ?? 0,
+      trimEnd: metadata.trimEnd ?? 0,
+      speed: metadata.speed ?? 1,
+      muted: metadata.muted ?? false,
+      volume: metadata.volume ?? 1,
+      textOverlays: metadata.textOverlays ?? [],
+      aspectRatio: metadata.aspectRatio ?? null,
+      editedAt: metadata.editedAt,
     });
   } catch (error) {
     next(error);
@@ -444,7 +466,12 @@ async function hasAudioStream(filePath) {
 }
 
 // Stitch multiple video clips together using FFmpeg filter_complex
-async function stitchVideosWithFFmpeg(clips, destPath) {
+async function stitchVideosWithFFmpeg(
+  clips,
+  destPath,
+  transition,
+  transitionDuration,
+) {
   // First, check which clips have audio
   for (const clip of clips) {
     clip.hasAudio = await hasAudioStream(clip.sourcePath);
@@ -470,28 +497,70 @@ async function stitchVideosWithFFmpeg(clips, destPath) {
       const duration = clip.trimEnd - clip.trimStart;
 
       // Video filter with trim, scale to fit, and pad to exact target dimensions
-      // This ensures all clips have identical dimensions for concat
-      // Use explicit dimensions in pad calculation for reliability
+      // This ensures all clips have identical dimensions for concat or xfade
+      // fps=30 and settb=AVTB ensure consistent frame rate and timebase for xfade compatibility
       filterParts.push(
-        `[${i}:v]trim=start=${clip.trimStart}:duration=${duration},setpts=PTS-STARTPTS,scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(${targetWidth}-iw)/2:(${targetHeight}-ih)/2:black,setsar=1[v${i}]`,
+        `[${i}:v]trim=start=${clip.trimStart}:duration=${duration},setpts=PTS-STARTPTS,scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(${targetWidth}-iw)/2:(${targetHeight}-ih)/2:black,setsar=1,fps=30,settb=AVTB[v${i}]`,
       );
 
-      // Audio filter - use actual audio or generate silence
+      // Audio filter - use actual audio if present, otherwise generate silence
+      // This ensures all audio streams have consistent format for concat
       if (clip.hasAudio) {
         filterParts.push(
           `[${i}:a]atrim=start=${clip.trimStart}:duration=${duration},asetpts=PTS-STARTPTS[a${i}]`,
         );
       } else {
-        // Generate silent audio for this clip's duration using aevalsrc
-        filterParts.push(`aevalsrc=0:d=${duration}:s=48000:c=stereo[a${i}]`);
+        // Generate silent audio for clips without audio streams
+        filterParts.push(
+          `anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=${duration}[a${i}]`,
+        );
       }
     });
 
-    // Concat all streams
-    const concatInputs = clips.map((_, i) => `[v${i}][a${i}]`).join("");
-    filterParts.push(
-      `${concatInputs}concat=n=${clips.length}:v=1:a=1[outv][outa]`,
-    );
+    // Apply transitions to video, keep audio simple with concat
+    if (transition && clips.length > 1) {
+      // Use xfade transitions for video
+      const effectiveTransitionDuration = Math.min(
+        transitionDuration || 1,
+        clips.reduce((min, clip) => Math.min(min, clip.duration), Infinity) -
+          0.5,
+      );
+
+      console.log(
+        `Applying transition: ${transition}, duration: ${effectiveTransitionDuration}s`,
+      );
+
+      // Chain xfade filters for video
+      let currentLabel = `v0`;
+      let currentOffset = clips[0].duration - effectiveTransitionDuration;
+
+      for (let i = 1; i < clips.length; i++) {
+        const nextLabel = `v${i}`;
+        const outputLabel = i === clips.length - 1 ? "outv" : `xf${i}`;
+        const offset = Math.max(0, currentOffset);
+
+        filterParts.push(
+          `[${currentLabel}][${nextLabel}]xfade=transition=${transition}:duration=${effectiveTransitionDuration.toFixed(2)}:offset=${offset.toFixed(2)}[${outputLabel}]`,
+        );
+
+        currentLabel = outputLabel;
+        if (i < clips.length - 1) {
+          currentOffset =
+            currentOffset + clips[i].duration - effectiveTransitionDuration;
+        }
+      }
+
+      // Concat audio separately (no transitions)
+      // v=0 specifies no video streams, a=1 specifies one audio stream
+      const audioInputs = clips.map((_, i) => `[a${i}]`).join("");
+      filterParts.push(`${audioInputs}concat=n=${clips.length}:v=0:a=1[outa]`);
+    } else {
+      // No transitions - use simple concat for both video and audio
+      const concatInputs = clips.map((_, i) => `[v${i}][a${i}]`).join("");
+      filterParts.push(
+        `${concatInputs}concat=n=${clips.length}:v=1:a=1[outv][outa]`,
+      );
+    }
 
     const args = [
       ...inputArgs,
@@ -545,7 +614,7 @@ async function stitchVideosWithFFmpeg(clips, destPath) {
 router.post("/:projectId/stitch", async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const { clips } = req.body;
+    const { clips, transition, transitionDuration } = req.body;
 
     if (!clips || !Array.isArray(clips) || clips.length < 2) {
       throw new ValidationError("At least 2 clips are required for stitching");
@@ -606,7 +675,12 @@ router.post("/:projectId/stitch", async (req, res, next) => {
     console.log(
       `Stitching ${clipInfos.length} clips into ${filename} (total duration: ${totalDuration}s)`,
     );
-    await stitchVideosWithFFmpeg(clipInfos, outputPath);
+    await stitchVideosWithFFmpeg(
+      clipInfos,
+      outputPath,
+      transition,
+      transitionDuration,
+    );
 
     // Generate thumbnail from the stitched video
     const thumbnailFilename = `${mediaId}.jpg`;

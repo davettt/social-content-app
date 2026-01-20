@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] - 2026-01-20
+
+### Added
+- **Draggable video text** - Text overlays in the video editor can now be dragged to reposition. Select a text overlay and drag to move it from the preset position. Offsets are preserved on save and applied during export.
+
 ## [1.4.0] - 2026-01-19
 
 ### Removed

@@ -393,13 +393,15 @@ export const editsApi = {
       trimStart?: number;
       trimEnd?: number;
     }>,
+    transition?: string,
+    transitionDuration?: number,
   ) =>
     fetchJson<{
       success: boolean;
       media: Media;
     }>(`${API_BASE}/edits/${projectId}/stitch`, {
       method: "POST",
-      body: JSON.stringify({ clips }),
+      body: JSON.stringify({ clips, transition, transitionDuration }),
     }),
 
   // Photo slideshow
