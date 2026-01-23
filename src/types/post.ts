@@ -120,6 +120,11 @@ export interface TextOverlay {
   rotation: number;
   textAlign: "left" | "center" | "right";
   shadow?: boolean;
+  shadowColor?: string; // Hex color (default: "#000000")
+  shadowBlur?: number; // Blur radius 0-20 (preview only, FFmpeg doesn't support blur)
+  shadowOffsetX?: number; // X offset -10 to 10
+  shadowOffsetY?: number; // Y offset -10 to 10
+  shadowOpacity?: number; // Opacity 0-1 (default: 0.5)
   strokeColor?: string; // Text outline color
   strokeWidth?: number; // Text outline width (0-10px)
   /** Preset position from 3x3 grid (if set, x/y are calculated from this) */

@@ -621,6 +621,11 @@ export function ImageEditor({
       rotation: 0,
       textAlign,
       shadow: true,
+      shadowColor: "#000000",
+      shadowBlur: 4,
+      shadowOffsetX: 2,
+      shadowOffsetY: 2,
+      shadowOpacity: 0.5,
       position,
       strokeColor: undefined,
       strokeWidth: 0,
@@ -733,18 +738,29 @@ export function ImageEditor({
           activeObject.set("fill", value as string);
           break;
         case "shadow":
-          if (value) {
+        case "shadowColor":
+        case "shadowBlur":
+        case "shadowOffsetX":
+        case "shadowOffsetY":
+        case "shadowOpacity":
+          if (property === "shadow" && !value) {
+            activeObject.set("shadow", null);
+          } else if (selectedText?.shadow || property !== "shadow") {
+            const color = selectedText?.shadowColor || "#000000";
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            const opacity = selectedText?.shadowOpacity ?? 0.5;
+
             activeObject.set(
               "shadow",
               new Shadow({
-                color: "rgba(0, 0, 0, 0.5)",
-                blur: 4,
-                offsetX: 2,
-                offsetY: 2,
+                color: `rgba(${r}, ${g}, ${b}, ${opacity})`,
+                blur: selectedText?.shadowBlur ?? 4,
+                offsetX: selectedText?.shadowOffsetX ?? 2,
+                offsetY: selectedText?.shadowOffsetY ?? 2,
               }),
             );
-          } else {
-            activeObject.set("shadow", null);
           }
           break;
         case "backgroundColor":
@@ -1482,8 +1498,8 @@ export function ImageEditor({
                       />
                     </div>
 
-                    <div>
-                      <label className="flex items-center gap-3 cursor-pointer">
+                    <div className="border-t border-gray-700 pt-4">
+                      <label className="flex items-center gap-3 cursor-pointer mb-3">
                         <input
                           type="checkbox"
                           checked={selectedText.shadow || false}
@@ -1496,6 +1512,136 @@ export function ImageEditor({
                           Drop Shadow
                         </span>
                       </label>
+
+                      {selectedText.shadow && (
+                        <>
+                          <div className="mb-3">
+                            <label className="text-sm text-gray-300 block mb-2">
+                              Shadow Color
+                            </label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {getBrandColors()
+                                .slice(0, 7)
+                                .map((c) => (
+                                  <button
+                                    key={c.color}
+                                    onClick={() =>
+                                      updateTextProperty("shadowColor", c.color)
+                                    }
+                                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                      selectedText.shadowColor?.toLowerCase() ===
+                                      c.color.toLowerCase()
+                                        ? "border-white scale-110"
+                                        : "border-gray-600 hover:border-gray-400"
+                                    }`}
+                                    style={{ backgroundColor: c.color }}
+                                    title={c.label}
+                                  />
+                                ))}
+                            </div>
+                            <input
+                              type="color"
+                              value={selectedText.shadowColor || "#000000"}
+                              onChange={(e) =>
+                                updateTextProperty(
+                                  "shadowColor",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full h-10 rounded-lg cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Opacity</span>
+                              <span>
+                                {Math.round(
+                                  (selectedText.shadowOpacity ?? 0.5) * 100,
+                                )}
+                                %
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={selectedText.shadowOpacity ?? 0.5}
+                              onChange={(e) =>
+                                updateTextProperty(
+                                  "shadowOpacity",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Offset X</span>
+                              <span>{selectedText.shadowOffsetX ?? 2}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="-10"
+                              max="10"
+                              step="1"
+                              value={selectedText.shadowOffsetX ?? 2}
+                              onChange={(e) =>
+                                updateTextProperty(
+                                  "shadowOffsetX",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Offset Y</span>
+                              <span>{selectedText.shadowOffsetY ?? 2}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="-10"
+                              max="10"
+                              step="1"
+                              value={selectedText.shadowOffsetY ?? 2}
+                              onChange={(e) =>
+                                updateTextProperty(
+                                  "shadowOffsetY",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Blur</span>
+                              <span>{selectedText.shadowBlur ?? 4}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="20"
+                              step="1"
+                              value={selectedText.shadowBlur ?? 4}
+                              onChange={(e) =>
+                                updateTextProperty(
+                                  "shadowBlur",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="w-full"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <Button

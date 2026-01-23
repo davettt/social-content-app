@@ -16,6 +16,16 @@ interface VideoTextPreviewProps {
 }
 
 /**
+ * Convert hex color to rgba string
+ */
+function hexToRgba(hex: string, opacity: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+/**
  * Check if text should be visible based on timing preset
  */
 function isTextVisible(
@@ -297,7 +307,7 @@ export function VideoTextPreview({
                   color: overlay.color,
                   opacity: effectiveOpacity,
                   textShadow: overlay.shadow
-                    ? "2px 2px 4px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.5)"
+                    ? `${overlay.shadowOffsetX ?? 2}px ${overlay.shadowOffsetY ?? 2}px ${overlay.shadowBlur ?? 4}px ${hexToRgba(overlay.shadowColor || "#000000", overlay.shadowOpacity ?? 0.5)}`
                     : undefined,
                   backgroundColor: overlay.backgroundColor || undefined,
                   padding: overlay.backgroundColor ? "4px 8px" : undefined,

@@ -391,8 +391,14 @@ async function renderTextToImage(overlay, fontScaleFactor) {
 
     // Add shadow filter if needed
     if (overlay.shadow) {
+      const shadowOffsetX = overlay.shadowOffsetX ?? 2;
+      const shadowOffsetY = overlay.shadowOffsetY ?? 2;
+      const shadowBlur = overlay.shadowBlur ?? 4;
+      const shadowOpacity = overlay.shadowOpacity ?? 0.5;
+      const shadowColor = overlay.shadowColor || "#000000";
+
       svgContent += `<defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-        <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.7"/>
+        <feDropShadow dx="${shadowOffsetX}" dy="${shadowOffsetY}" stdDeviation="${shadowBlur}" flood-color="${shadowColor}" flood-opacity="${shadowOpacity}"/>
       </filter></defs>`;
     }
 
@@ -522,8 +528,21 @@ function buildDrawtextFilters(
   // Build shadow options string
   let shadowOpts = "";
   if (overlay.shadow) {
-    const shadowOffset = Math.max(1, Math.round(2 * fontScaleFactor));
-    shadowOpts = `:shadowcolor=black@0.7:shadowx=${shadowOffset}:shadowy=${shadowOffset}`;
+    const shadowOffsetX = Math.round(
+      (overlay.shadowOffsetX || 2) * fontScaleFactor,
+    );
+    const shadowOffsetY = Math.round(
+      (overlay.shadowOffsetY || 2) * fontScaleFactor,
+    );
+    const shadowOpacity = overlay.shadowOpacity ?? 0.5;
+    const shadowColor = overlay.shadowColor || "#000000";
+
+    // Remove # prefix from hex color if present
+    const shadowColorHex = shadowColor.startsWith("#")
+      ? shadowColor.slice(1)
+      : shadowColor;
+
+    shadowOpts = `:shadowcolor=${shadowColorHex}@${shadowOpacity.toFixed(2)}:shadowx=${shadowOffsetX}:shadowy=${shadowOffsetY}`;
   }
 
   // Calculate scaled offsets for applying to yExpr (x already has offset from getFFmpegPositionExpression)

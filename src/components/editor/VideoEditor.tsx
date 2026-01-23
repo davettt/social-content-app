@@ -299,6 +299,11 @@ export function VideoEditor({
       rotation: 0,
       textAlign: "center",
       shadow: true,
+      shadowColor: "#000000",
+      shadowBlur: 4,
+      shadowOffsetX: 2,
+      shadowOffsetY: 2,
+      shadowOpacity: 0.5,
       position: "middle-center",
       timing: "full",
     };
@@ -1004,20 +1009,59 @@ export function VideoEditor({
 
                     {/* Background Color */}
                     <div>
-                      <label className="block text-sm text-gray-300 mb-1">
+                      <label className="text-sm text-gray-300 block mb-2">
                         Background
                       </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={selectedText.backgroundColor || "#000000"}
-                          onChange={(e) =>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <button
+                          onClick={() =>
                             updateTextOverlay(selectedText.id, {
-                              backgroundColor: e.target.value,
+                              backgroundColor: undefined,
                             })
                           }
-                          className="w-10 h-10 rounded-lg cursor-pointer"
+                          className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                            !selectedText.backgroundColor
+                              ? "border-white scale-110"
+                              : "border-gray-600 hover:border-gray-400"
+                          }`}
+                          style={{
+                            background:
+                              "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                          }}
+                          title="None"
                         />
+                        {brandColors.slice(0, 7).map((c) => (
+                          <button
+                            key={c.color}
+                            onClick={() =>
+                              updateTextOverlay(selectedText.id, {
+                                backgroundColor: c.color,
+                              })
+                            }
+                            className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                              selectedText.backgroundColor?.toLowerCase() ===
+                              c.color.toLowerCase()
+                                ? "border-white scale-110"
+                                : "border-gray-600 hover:border-gray-400"
+                            }`}
+                            style={{ backgroundColor: c.color }}
+                            title={c.label}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedText.backgroundColor && (
+                          <input
+                            type="color"
+                            value={selectedText.backgroundColor}
+                            onChange={(e) =>
+                              updateTextOverlay(selectedText.id, {
+                                backgroundColor: e.target.value,
+                              })
+                            }
+                            className="w-10 h-10 rounded-lg cursor-pointer"
+                          />
+                        )}
                         <button
                           onClick={() =>
                             updateTextOverlay(selectedText.id, {
@@ -1040,8 +1084,8 @@ export function VideoEditor({
                     </div>
 
                     {/* Shadow */}
-                    <div>
-                      <label className="flex items-center gap-3 cursor-pointer">
+                    <div className="border-t border-gray-700 pt-4">
+                      <label className="flex items-center gap-3 cursor-pointer mb-3">
                         <input
                           type="checkbox"
                           checked={selectedText.shadow ?? true}
@@ -1056,6 +1100,131 @@ export function VideoEditor({
                           Drop Shadow
                         </span>
                       </label>
+
+                      {selectedText.shadow && (
+                        <>
+                          <div className="mb-3">
+                            <label className="text-sm text-gray-300 block mb-2">
+                              Shadow Color
+                            </label>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {brandColors.slice(0, 7).map((c) => (
+                                <button
+                                  key={c.color}
+                                  onClick={() =>
+                                    updateTextOverlay(selectedText.id, {
+                                      shadowColor: c.color,
+                                    })
+                                  }
+                                  className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                    selectedText.shadowColor?.toLowerCase() ===
+                                    c.color.toLowerCase()
+                                      ? "border-white scale-110"
+                                      : "border-gray-600 hover:border-gray-400"
+                                  }`}
+                                  style={{ backgroundColor: c.color }}
+                                  title={c.label}
+                                />
+                              ))}
+                            </div>
+                            <input
+                              type="color"
+                              value={selectedText.shadowColor || "#000000"}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  shadowColor: e.target.value,
+                                })
+                              }
+                              className="w-full h-10 rounded-lg cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Opacity</span>
+                              <span>
+                                {Math.round(
+                                  (selectedText.shadowOpacity ?? 0.5) * 100,
+                                )}
+                                %
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={selectedText.shadowOpacity ?? 0.5}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  shadowOpacity: Number(e.target.value),
+                                })
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Offset X</span>
+                              <span>{selectedText.shadowOffsetX ?? 2}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="-10"
+                              max="10"
+                              step="1"
+                              value={selectedText.shadowOffsetX ?? 2}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  shadowOffsetX: Number(e.target.value),
+                                })
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Offset Y</span>
+                              <span>{selectedText.shadowOffsetY ?? 2}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="-10"
+                              max="10"
+                              step="1"
+                              value={selectedText.shadowOffsetY ?? 2}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  shadowOffsetY: Number(e.target.value),
+                                })
+                              }
+                              className="w-full"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-300 mb-1">
+                              <span>Blur</span>
+                              <span>{selectedText.shadowBlur ?? 4}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="20"
+                              step="1"
+                              value={selectedText.shadowBlur ?? 4}
+                              onChange={(e) =>
+                                updateTextOverlay(selectedText.id, {
+                                  shadowBlur: Number(e.target.value),
+                                })
+                              }
+                              className="w-full"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Text Stroke */}
@@ -1065,20 +1234,63 @@ export function VideoEditor({
                         vto.strokeWidth != null && vto.strokeWidth > 0;
                       return (
                         <div>
-                          <label className="block text-sm text-gray-300 mb-1">
+                          <label className="text-sm text-gray-300 block mb-2">
                             Text Outline
                           </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={vto.strokeColor || "#000000"}
-                              onChange={(e) =>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            <button
+                              onClick={() => {
                                 updateTextOverlay(selectedText.id, {
-                                  strokeColor: e.target.value,
-                                })
-                              }
-                              className="w-10 h-10 rounded-lg cursor-pointer"
+                                  strokeColor: undefined,
+                                  strokeWidth: 0,
+                                });
+                              }}
+                              className={`w-8 h-8 rounded-lg border-2 transition-all flex items-center justify-center ${
+                                !hasStroke
+                                  ? "border-white scale-110"
+                                  : "border-gray-600 hover:border-gray-400"
+                              }`}
+                              style={{
+                                background:
+                                  "linear-gradient(135deg, #374151 45%, transparent 45%, transparent 55%, #374151 55%), linear-gradient(45deg, #ef4444 50%, transparent 50%)",
+                              }}
+                              title="None"
                             />
+                            {brandColors.slice(0, 7).map((c) => (
+                              <button
+                                key={c.color}
+                                onClick={() =>
+                                  updateTextOverlay(selectedText.id, {
+                                    strokeColor: c.color,
+                                    strokeWidth: hasStroke
+                                      ? vto.strokeWidth
+                                      : 2,
+                                  })
+                                }
+                                className={`w-8 h-8 rounded-lg border-2 transition-all ${
+                                  vto.strokeColor?.toLowerCase() ===
+                                    c.color.toLowerCase() && hasStroke
+                                    ? "border-white scale-110"
+                                    : "border-gray-600 hover:border-gray-400"
+                                }`}
+                                style={{ backgroundColor: c.color }}
+                                title={c.label}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {hasStroke && (
+                              <input
+                                type="color"
+                                value={vto.strokeColor || "#000000"}
+                                onChange={(e) =>
+                                  updateTextOverlay(selectedText.id, {
+                                    strokeColor: e.target.value,
+                                  })
+                                }
+                                className="w-10 h-10 rounded-lg cursor-pointer"
+                              />
+                            )}
                             <button
                               onClick={() =>
                                 updateTextOverlay(selectedText.id, {
