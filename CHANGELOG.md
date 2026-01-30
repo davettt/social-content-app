@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.2] - 2026-01-31
+
+### Security
+- Fixed 6 npm vulnerabilities (3 high, 3 moderate)
+- **react-router / react-router-dom** - Fixed CSRF and XSS issues (high severity)
+- **tar / @mapbox/node-pre-gyp** - Fixed arbitrary file overwrite via path traversal (high severity)
+- **lodash** - Fixed prototype pollution (moderate)
+- **undici** - Fixed unbounded decompression chain (moderate)
+- **multer** - Upgraded from 1.x to 2.0.2 (security vulnerabilities patched)
+- Added overrides for `tar@7.6.0` to resolve phantom vulnerability from optional peer dependency
+
 ## [1.4.1] - 2026-01-20
 
 ### Added
