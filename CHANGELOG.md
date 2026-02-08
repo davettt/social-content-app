@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0] - 2026-02-07
+
+### Added
+- **Decorative graphic elements in image editor** (TC-95) - New "Graphics" tab alongside Adjust/Filter/Text with three element categories:
+  - **Star ratings** - 1-5 star ratings with filled/outline styles and customizable colors
+  - **Icons** - 8 decorative icons (quote marks, camera, heart, sparkle, film, arrow, checkmark) rendered as scalable SVG paths
+  - **Shapes** - Circle and rounded rectangle with fill, stroke, and corner radius controls
+  - **Decorative frames** - Polaroid, stamp edge, and scalloped edge frames with transparent centers for framing content
+- Graphics are fully interactive on the Fabric.js canvas (drag, resize, rotate) with per-element property controls
+- Graphics persist through save/load cycle and render in exported images
+
+### Fixed
+- **Graphics disappearing on deselect** - Added `preserveObjectStacking: true` to Fabric.js canvas to prevent z-order issues when clicking background image
+
 ## [1.4.2] - 2026-01-31
 
 ### Security

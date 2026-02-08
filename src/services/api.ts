@@ -265,6 +265,25 @@ export const editsApi = {
         strokeWidth?: number;
         position: string;
       }>;
+      graphicOverlays?: Array<{
+        id: string;
+        type: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        color: string;
+        opacity: number;
+        rotation: number;
+        starCount?: number;
+        starStyle?: string;
+        iconName?: string;
+        shapeName?: string;
+        fill?: string;
+        stroke?: string;
+        strokeWidth?: number;
+        cornerRadius?: number;
+      }>;
     },
   ) =>
     fetchJson<{
@@ -304,6 +323,25 @@ export const editsApi = {
         strokeColor?: string;
         strokeWidth?: number;
         position: string;
+      }>;
+      graphicOverlays?: Array<{
+        id: string;
+        type: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        color: string;
+        opacity: number;
+        rotation: number;
+        starCount?: number;
+        starStyle?: string;
+        iconName?: string;
+        shapeName?: string;
+        fill?: string;
+        stroke?: string;
+        strokeWidth?: number;
+        cornerRadius?: number;
       }>;
       editedAt?: string;
     }>(`${API_BASE}/edits/${projectId}/image/${mediaId}`),

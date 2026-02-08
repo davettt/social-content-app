@@ -45,7 +45,7 @@ async function writeMediaIndex(projectId, data) {
 router.post("/:projectId/image/:mediaId", async (req, res, next) => {
   try {
     const { projectId, mediaId } = req.params;
-    const { dataUrl, adjustments, textOverlays } = req.body;
+    const { dataUrl, adjustments, textOverlays, graphicOverlays } = req.body;
 
     if (!dataUrl) {
       throw new ValidationError("dataUrl is required");
@@ -74,6 +74,7 @@ router.post("/:projectId/image/:mediaId", async (req, res, next) => {
       mediaId,
       adjustments: adjustments || {},
       textOverlays: textOverlays || [],
+      graphicOverlays: graphicOverlays || [],
       processedPath: `${projectId}/media/processed/${mediaId}.png`,
       editedAt: new Date().toISOString(),
     };
@@ -134,6 +135,7 @@ router.get("/:projectId/image/:mediaId", async (req, res, next) => {
         dataUrl,
         adjustments: metadata.adjustments,
         textOverlays: metadata.textOverlays,
+        graphicOverlays: metadata.graphicOverlays || [],
         editedAt: metadata.editedAt,
       });
     } catch (e) {
@@ -142,6 +144,7 @@ router.get("/:projectId/image/:mediaId", async (req, res, next) => {
         hasEdits: true,
         adjustments: metadata.adjustments,
         textOverlays: metadata.textOverlays,
+        graphicOverlays: metadata.graphicOverlays || [],
         editedAt: metadata.editedAt,
       });
     }

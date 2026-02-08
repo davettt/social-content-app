@@ -281,10 +281,22 @@ export function PostComposer() {
                 | undefined,
             }));
 
+            const graphicOverlays = savedEdits.graphicOverlays?.map(
+              (overlay) => ({
+                ...overlay,
+                type: overlay.type as "stars" | "icon" | "shape",
+                starStyle: overlay.starStyle as
+                  | "filled"
+                  | "outline"
+                  | undefined,
+              }),
+            );
+
             setEditedImage(media.id, {
               dataUrl: savedEdits.dataUrl,
               adjustments,
               textOverlays,
+              graphicOverlays,
             });
           }
         } catch {
@@ -1351,6 +1363,9 @@ export function PostComposer() {
             editedImageUrl={editedImages[editingMedia.id]?.dataUrl}
             initialAdjustments={editedImages[editingMedia.id]?.adjustments}
             initialTextOverlays={editedImages[editingMedia.id]?.textOverlays}
+            initialGraphicOverlays={
+              editedImages[editingMedia.id]?.graphicOverlays
+            }
             aspectRatio={getPlatformDimensions(
               previewPlatform,
               platformAspects[previewPlatform],
@@ -1360,6 +1375,7 @@ export function PostComposer() {
                 dataUrl,
                 adjustments: edits.adjustments,
                 textOverlays: edits.textOverlays,
+                graphicOverlays: edits.graphicOverlays,
               });
               setEditingMedia(null);
             }}

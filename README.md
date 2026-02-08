@@ -7,7 +7,7 @@ A local-first web application for creating viral-optimized social media content.
 - **Multi-project support** - Manage multiple brands/businesses
 - **AI-powered business analysis** - Extract brand info from website or questionnaire
 - **Media library** - Upload photos/videos with metadata extraction
-- **Image editor** - Crop, filters, adjustments, text overlay with brand fonts/colors
+- **Image editor** - Crop, filters, adjustments, text overlay, decorative graphics (star ratings, icons, shapes, frames)
 - **Video editor** - Trim, speed adjust, audio controls, draggable text overlay
 - **Video stitcher** - Combine multiple clips with automatic aspect ratio normalization
 - **Collage builder** - Multi-image layouts

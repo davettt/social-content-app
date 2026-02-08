@@ -1,6 +1,6 @@
 {
   "name": "social-content-app",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "Local-first web application for creating viral-optimized social media content",
   "license": "MIT-Commons-Clause",
   "type": "module",

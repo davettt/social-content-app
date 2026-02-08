@@ -89,6 +89,7 @@ export interface MediaEdits {
   adjustments?: ImageAdjustments;
   filter?: string;
   textOverlays?: TextOverlay[];
+  graphicOverlays?: GraphicOverlay[];
 }
 
 export interface CropData {
@@ -129,6 +130,31 @@ export interface TextOverlay {
   strokeWidth?: number; // Text outline width (0-10px)
   /** Preset position from 3x3 grid (if set, x/y are calculated from this) */
   position?: TextPosition;
+}
+
+export type GraphicType = "stars" | "icon" | "shape";
+
+export interface GraphicOverlay {
+  id: string;
+  type: GraphicType;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  opacity: number;
+  rotation: number;
+  // Star-specific
+  starCount?: number; // 1-5
+  starStyle?: "filled" | "outline";
+  // Icon-specific
+  iconName?: string;
+  // Shape-specific
+  shapeName?: string;
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  cornerRadius?: number;
 }
 
 // Timing preset for video text overlays

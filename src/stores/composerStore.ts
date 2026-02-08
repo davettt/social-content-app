@@ -6,6 +6,7 @@ import type {
   ViralityScore,
   ImageAdjustments,
   TextOverlay,
+  GraphicOverlay,
 } from "../types";
 
 // Default aspect ratios per platform
@@ -23,6 +24,7 @@ export interface EditedImageData {
   dataUrl: string;
   adjustments?: ImageAdjustments;
   textOverlays?: TextOverlay[];
+  graphicOverlays?: GraphicOverlay[];
 }
 
 export interface GeneratedImage {
