@@ -1,6 +1,6 @@
 {
   "name": "social-content-app",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Local-first web application for creating viral-optimized social media content",
   "license": "MIT-Commons-Clause",
   "type": "module",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
+    "@google/generative-ai": "^0.24.1",
     "@tanstack/react-query": "^5.62.0",
     "archiver": "^7.0.1",
     "cheerio": "^1.0.0",

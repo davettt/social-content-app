@@ -13,6 +13,7 @@ import { Modal } from "../common/Modal";
 import { PageLoader } from "../common/LoadingSpinner";
 import { CollageBuilder } from "../editor/CollageBuilder";
 import { VideoStitcher } from "../editor/VideoStitcher";
+import { GenerateImageModal } from "./GenerateImageModal";
 import { useComposerStore } from "../../stores/composerStore";
 import type { Media } from "../../types";
 
@@ -30,6 +31,7 @@ export function MediaLibrary() {
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [showCollageBuilder, setShowCollageBuilder] = useState(false);
   const [showVideoStitcher, setShowVideoStitcher] = useState(false);
+  const [showGenerateImage, setShowGenerateImage] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [collageResult, setCollageResult] = useState<string | null>(null);
 
@@ -109,6 +111,12 @@ export function MediaLibrary() {
         </div>
 
         <div className="flex items-center gap-4">
+          <Button
+            variant="secondary"
+            onClick={() => setShowGenerateImage(true)}
+          >
+            Generate Image
+          </Button>
           <Button
             variant="secondary"
             onClick={() => setShowVideoStitcher(true)}
@@ -264,6 +272,15 @@ export function MediaLibrary() {
         />
       )}
 
+      {/* Generate Image Modal */}
+      {showGenerateImage && projectId && (
+        <GenerateImageModal
+          projectId={projectId}
+          onClose={() => setShowGenerateImage(false)}
+          onGenerated={() => setShowGenerateImage(false)}
+        />
+      )}
+
       {/* Collage Result Modal */}
       <Modal
         isOpen={!!collageResult}
@@ -380,6 +397,12 @@ function MediaCard({
           />
         </svg>
       </button>
+
+      {media.source === "generated" && (
+        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-purple-600/90 text-white text-xs rounded font-medium">
+          AI
+        </div>
+      )}
 
       {media.metadata.dateTaken && (
         <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">

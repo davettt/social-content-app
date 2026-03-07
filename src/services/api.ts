@@ -4,6 +4,7 @@ import type {
   UpdateProjectInput,
   Media,
   MediaUploadResult,
+  ImageGenProvider,
   CaptionSuggestion,
   ViralityScore,
   VideoTextOverlay,
@@ -104,6 +105,26 @@ export const mediaApi = {
   delete: (projectId: string, mediaId: string) =>
     fetchJson<void>(`${API_BASE}/media/${projectId}/${mediaId}`, {
       method: "DELETE",
+    }),
+
+  getImageGenProviders: () =>
+    fetchJson<{
+      providers: ImageGenProvider[];
+      aspectRatios: { id: string; label: string }[];
+    }>(`${API_BASE}/media/image-gen/providers`),
+
+  generate: (
+    projectId: string,
+    data: {
+      provider: string;
+      modelId: string;
+      prompt: string;
+      aspectRatio: string;
+    },
+  ) =>
+    fetchJson<Media>(`${API_BASE}/media/${projectId}/generate`, {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };
 

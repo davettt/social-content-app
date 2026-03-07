@@ -75,3 +75,35 @@ export function useDeleteMedia() {
     },
   });
 }
+
+export function useImageGenProviders() {
+  return useQuery({
+    queryKey: ["image-gen-providers"],
+    queryFn: () => mediaApi.getImageGenProviders(),
+    staleTime: Infinity,
+  });
+}
+
+export function useGenerateImage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      provider,
+      modelId,
+      prompt,
+      aspectRatio,
+    }: {
+      projectId: string;
+      provider: string;
+      modelId: string;
+      prompt: string;
+      aspectRatio: string;
+    }) =>
+      mediaApi.generate(projectId, { provider, modelId, prompt, aspectRatio }),
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["media", projectId] });
+    },
+  });
+}

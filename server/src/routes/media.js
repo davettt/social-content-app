@@ -14,6 +14,11 @@ import {
   getVideoThumbnail,
 } from "../services/metadataExtractor.js";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler.js";
+import {
+  generateImage,
+  getAvailableProviders,
+  ASPECT_RATIOS,
+} from "../services/imageGenerationService.js";
 
 const router = express.Router();
 
@@ -115,6 +120,14 @@ async function generateThumbnail(sourcePath, destPath) {
     .jpeg({ quality: 80 })
     .toFile(destPath);
 }
+
+// GET /api/media/image-gen/providers - List available image generation providers
+router.get("/image-gen/providers", (req, res) => {
+  res.json({
+    providers: getAvailableProviders(),
+    aspectRatios: ASPECT_RATIOS,
+  });
+});
 
 // GET /api/media/:projectId - List all media for a project
 router.get("/:projectId", async (req, res, next) => {
@@ -346,6 +359,98 @@ router.delete("/:projectId/:mediaId", async (req, res, next) => {
     await writeMediaIndex(projectId, index);
 
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/media/:projectId/generate - Generate image and save to media library
+router.post("/:projectId/generate", async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { provider, modelId, prompt, aspectRatio } = req.body;
+
+    if (!provider || !modelId || !prompt) {
+      throw new ValidationError("provider, modelId, and prompt are required");
+    }
+
+    if (!prompt.trim()) {
+      throw new ValidationError("Prompt cannot be empty");
+    }
+
+    const projectDir = await getProjectDir(projectId);
+
+    // Call image generation service
+    const generated = await generateImage({
+      provider,
+      modelId,
+      prompt: prompt.trim(),
+      aspectRatio,
+    });
+
+    // Save image to originals directory
+    const id = uuidv4();
+    const ext = generated.mimeType === "image/jpeg" ? ".jpg" : ".png";
+    const filename = `ai-generated-${Date.now()}${ext}`;
+    const originalFilePath = path.join(
+      projectDir,
+      "media",
+      "originals",
+      filename,
+    );
+
+    const imageBuffer = Buffer.from(generated.data, "base64");
+    await fs.writeFile(originalFilePath, imageBuffer);
+
+    // Generate thumbnail
+    const thumbnailFilename = `${id}.jpg`;
+    const thumbnailPath = path.join(
+      projectDir,
+      "media",
+      "thumbnails",
+      thumbnailFilename,
+    );
+    await sharp(originalFilePath)
+      .resize(400, 400, { fit: "cover", position: "center" })
+      .jpeg({ quality: 80 })
+      .toFile(thumbnailPath);
+
+    // Get image dimensions
+    const imageInfo = await sharp(originalFilePath).metadata();
+
+    const mediaItem = {
+      id,
+      projectId,
+      type: "image",
+      filename,
+      originalPath: `${projectId}/media/originals/${filename}`,
+      thumbnailPath: `${projectId}/media/thumbnails/${thumbnailFilename}`,
+      source: "generated",
+      generationPrompt: prompt.trim(),
+      generationProvider: provider,
+      generationModel: modelId,
+      metadata: {
+        width: imageInfo.width || 1024,
+        height: imageInfo.height || 1024,
+        dateTaken: null,
+        location: null,
+        camera: null,
+        duration: null,
+      },
+      userMetadata: {
+        showDate: false,
+        showTime: false,
+        showLocation: false,
+        customCaption: prompt.trim(),
+      },
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const index = await readMediaIndex(projectId);
+    index.media.push(mediaItem);
+    await writeMediaIndex(projectId, index);
+
+    res.status(201).json(mediaItem);
   } catch (error) {
     next(error);
   }

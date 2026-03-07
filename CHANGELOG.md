@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0] - 2026-03-05
+
+### Added
+- **AI Image Generation** (TC-33) - Generate images from text prompts directly into the media library
+  - Accessible via "Generate Image" button in the Media Library toolbar
+  - Generated images are saved to the project media library and behave identically to uploaded photos
+  - AI-generated images are tagged with a purple "AI" badge in the media grid
+  - Prompt and model metadata stored with each generated image
+  - **Providers supported:**
+    - **Hugging Face** (free tier) — FLUX.1 Schnell, FLUX.1 Dev, Stable Diffusion XL via `HF_TOKEN`
+    - **Google Gemini** (billing required) — Nano Banana, Nano Banana 2, Nano Banana Pro via `GEMINI_API_KEY`
+  - Aspect ratio selection: Square (1:1), Portrait (4:5), Stories (9:16), Landscape (16:9)
+  - Provider abstraction designed for future expansion (additional providers can be added without UI changes)
+  - Rate limited to 20 generations per hour
+
 ## [1.5.0] - 2026-02-07
 
 ### Added

@@ -32,6 +32,10 @@ export interface Media {
   thumbnailPath: string;
   processedPath?: string; // Path to processed/edited version
   hasEdits?: boolean; // Whether the media has been edited
+  source?: "upload" | "generated";
+  generationPrompt?: string;
+  generationProvider?: string;
+  generationModel?: string;
   metadata: MediaMetadata;
   userMetadata: UserMediaMetadata;
   uploadedAt: string;
@@ -41,4 +45,17 @@ export interface MediaUploadResult {
   media: Media;
   success: boolean;
   error?: string;
+}
+
+export interface ImageGenModel {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface ImageGenProvider {
+  id: string;
+  name: string;
+  requiresKey: string;
+  models: ImageGenModel[];
 }
