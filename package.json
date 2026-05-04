@@ -41,7 +41,7 @@
     "react-dropzone": "^14.3.5",
     "react-router-dom": "^7.1.0",
     "sharp": "^0.33.5",
-    "uuid": "^11.0.3",
+    "uuid": "^14.0.0",
     "zustand": "^5.0.2"
   },
   "overrides": {
