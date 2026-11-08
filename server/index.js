@@ -12,6 +12,7 @@ import aiRouter from "./src/routes/ai.js";
 import exportRouter from "./src/routes/export.js";
 import editsRouter from "./src/routes/edits.js";
 import { errorHandler } from "./src/middleware/errorHandler.js";
+import { buildStale } from "./buildCheck.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +59,10 @@ app.use(
   "/media",
   express.static(path.join(__dirname, "..", "local_data", "projects")),
 );
+
+app.get("/api/build-status", (_req, res) => {
+  res.json({ stale: buildStale });
+});
 
 // API Routes
 app.use("/api/projects", projectsRouter);

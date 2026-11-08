@@ -350,7 +350,7 @@ async function extractFonts($, baseUrl) {
   });
 
   // Check Google Fonts links (both old and new API formats)
-  $('link[href*="fonts.googleapis.com"], link[href*="fonts.gstatic.com"]').each(
+  $('link[href*="fonts.googleapis.com"], link[href*="fonts.gstatic.com"]').each( // policy:names-font-host
     (_, el) => {
       const href = $(el).attr("href") || "";
 
@@ -400,7 +400,7 @@ async function extractFonts($, baseUrl) {
     const href = $(el).attr("href");
     if (
       href &&
-      !href.includes("fonts.googleapis.com") &&
+      !href.includes("fonts.googleapis.com") && // policy:names-font-host
       stylesheetLinks.length < 2
     ) {
       stylesheetLinks.push(href);

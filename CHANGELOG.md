@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- README marks the project as not currently maintained, possibly resumed in future; the app has been removed from pm2.
+
+## [1.7.0] - 2026-04-15
+
+### Added
+- **Stale build detection** — amber banner in the UI (and server-side console warning) prompts `npm run restart:pm2` when files in `src/` or `server/` have changed since the last build; new `GET /api/build-status` endpoint and `.last-build` marker written by `npm run build`
+
 ## [1.6.0] - 2026-03-05
 
 ### Added

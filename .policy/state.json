@@ -1,0 +1,378 @@
+{
+  "lastDriftProbe": "2026-11-08T08:25:42.940Z",
+  "driftCount": 20,
+  "staleDeps": [
+    "@eslint/js 9.39.2 -> 9.39.5 (113d old)",
+    "@types/react 18.3.27 -> 18.3.31 (148d old)",
+    "dotenv 17.2.3 -> 17.4.2 (202d old)",
+    "eslint 9.39.2 -> 9.39.5 (113d old)",
+    "express 4.22.1 -> 4.22.3 (47d old)",
+    "jimp 1.6.0 -> 1.6.1 (207d old)",
+    "nodemon 3.1.11 -> 3.1.14 (252d old)",
+    "react-dropzone 14.4.0 -> 14.4.1 (263d old)",
+    "uuid 11.1.0 -> 11.1.1 (185d old)"
+  ],
+  "lastHealthRun": "2026-10-31T22:05:14.451Z",
+  "lastRefreshProbe": "2026-11-08T08:25:42.940Z",
+  "refresh": {
+    "driftCount": 20,
+    "fixable": [
+      {
+        "name": "concurrently",
+        "severity": "critical",
+        "direct": true
+      },
+      {
+        "name": "proxy-addr",
+        "severity": "critical",
+        "direct": false
+      },
+      {
+        "name": "shell-quote",
+        "severity": "critical",
+        "direct": false
+      },
+      {
+        "name": "@jimp/core",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/diff",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/js-bmp",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/js-gif",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/js-jpeg",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/js-png",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/js-tiff",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-blit",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-blur",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-circle",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-color",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-contain",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-cover",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-crop",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-displace",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-dither",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-fisheye",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-flip",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-hash",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-mask",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-print",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-quantize",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-resize",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-rotate",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/plugin-threshold",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/types",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "@jimp/utils",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "body-parser",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "brace-expansion",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "browserslist",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "flatted",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "form-data",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "jimp",
+        "severity": "high",
+        "direct": true
+      },
+      {
+        "name": "js-yaml",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "lodash",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "minimatch",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "multer",
+        "severity": "high",
+        "direct": true
+      },
+      {
+        "name": "nanoid",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "path-to-regexp",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "picomatch",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "postcss",
+        "severity": "high",
+        "direct": true
+      },
+      {
+        "name": "react-router",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "react-router-dom",
+        "severity": "high",
+        "direct": true
+      },
+      {
+        "name": "rollup",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "source-map-js",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "undici",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "vite",
+        "severity": "high",
+        "direct": true
+      },
+      {
+        "name": "ws",
+        "severity": "high",
+        "direct": false
+      },
+      {
+        "name": "zod",
+        "severity": "high",
+        "direct": false
+      }
+    ],
+    "unfixed": [
+      {
+        "name": "fabric",
+        "severity": "high",
+        "direct": true,
+        "fix": "fabric@7.4.0 (major)"
+      },
+      {
+        "name": "sharp",
+        "severity": "high",
+        "direct": true,
+        "fix": "sharp@0.35.5 (major)"
+      }
+    ],
+    "prs": {
+      "superseded": [],
+      "open": [
+        {
+          "number": 28,
+          "title": "Bump vite and @vitejs/plugin-react",
+          "name": null
+        },
+        {
+          "number": 27,
+          "title": "Bump @babel/core from 7.28.6 to 7.29.7",
+          "name": "@babel/core"
+        },
+        {
+          "number": 26,
+          "title": "Bump js-yaml from 4.1.1 to 4.3.0",
+          "name": "js-yaml"
+        },
+        {
+          "number": 25,
+          "title": "Bump form-data from 4.0.5 to 4.0.6",
+          "name": "form-data"
+        },
+        {
+          "number": 24,
+          "title": "Bump undici from 7.24.7 to 7.28.0",
+          "name": "undici"
+        },
+        {
+          "number": 23,
+          "title": "Bump multer from 2.0.2 to 2.2.0",
+          "name": "multer"
+        },
+        {
+          "number": 22,
+          "title": "Bump react-router and react-router-dom",
+          "name": null
+        },
+        {
+          "number": 21,
+          "title": "Bump esbuild, @vitejs/plugin-react and vite",
+          "name": null
+        },
+        {
+          "number": 20,
+          "title": "Bump fabric from 6.9.1 to 7.4.0",
+          "name": "fabric"
+        },
+        {
+          "number": 18,
+          "title": "Bump ws from 8.19.0 to 8.21.0",
+          "name": "ws"
+        },
+        {
+          "number": 17,
+          "title": "Bump qs and express",
+          "name": null
+        },
+        {
+          "number": 16,
+          "title": "Bump @tootallnate/once from 2.0.0 to 2.0.1",
+          "name": "@tootallnate/once"
+        },
+        {
+          "number": 15,
+          "title": "Bump uuid from 11.1.0 to 14.0.0",
+          "name": "uuid"
+        },
+        {
+          "number": 13,
+          "title": "Bump minimatch",
+          "name": null
+        },
+        {
+          "number": 12,
+          "title": "Bump @tootallnate/once and fabric",
+          "name": null
+        }
+      ],
+      "reviewed": [],
+      "limit": 5
+    }
+  }
+}

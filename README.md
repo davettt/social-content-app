@@ -1,5 +1,7 @@
 # Social Content App
 
+> **Not currently maintained.** I'm not using or developing this app at the moment. I may pick it up again in future, so the code stays here. Until then, issues and pull requests may go unanswered.
+
 A local-first web application for creating viral-optimized social media content.
 
 ## Features
@@ -135,12 +137,12 @@ Images can be generated from text prompts via the **Generate Image** button in t
 
 ## Personal Project Notice
 
-This is a personal project maintained for my own use. You're welcome to:
-- Fork and customize for your own needs
-- Report bugs via GitHub Issues
-- Reference the code for learning
+This is a personal project, currently on hold. You're welcome to:
 
-I'm not actively reviewing pull requests or feature requests, as this keeps the project focused on my personal workflow.
+- Fork it and adapt it for your own use
+- Learn from the code
+
+I may pick it up again in future. Until then I'm not reviewing issues, pull requests or feature requests.
 
 ## License
 
